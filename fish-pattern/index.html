@@ -45,7 +45,7 @@
             </label>
             <label>
               <span>Eye radius <output id="eyeRadiusValue"></output></span>
-              <input id="eyeRadius" type="range" min="4" max="34" value="13">
+              <input id="eyeRadius" type="range" min="4" max="80" value="13">
             </label>
           </section>
 
@@ -53,15 +53,15 @@
             <h2>Ellipse 1: Outer Body</h2>
             <label>
               <span>X <output id="e1XValue"></output></span>
-              <input id="e1X" type="range" min="120" max="560" value="420">
+              <input id="e1X" type="range" min="120" max="1400" value="420">
             </label>
             <label>
               <span>Width <output id="e1WidthValue"></output></span>
-              <input id="e1Width" type="range" min="160" max="860" value="700">
+              <input id="e1Width" type="range" min="160" max="2200" value="700">
             </label>
             <label>
               <span>Height <output id="e1HeightValue"></output></span>
-              <input id="e1Height" type="range" min="120" max="520" value="390">
+              <input id="e1Height" type="range" min="120" max="1500" value="390">
             </label>
             <label>
               <span>Visible from left <output id="e1VisibleValue"></output></span>
@@ -73,15 +73,15 @@
             <h2>Ellipse 2</h2>
             <label>
               <span>X <output id="e2XValue"></output></span>
-              <input id="e2X" type="range" min="180" max="620" value="420">
+              <input id="e2X" type="range" min="180" max="1200" value="420">
             </label>
             <label>
               <span>Width <output id="e2WidthValue"></output></span>
-              <input id="e2Width" type="range" min="80" max="560" value="240">
+              <input id="e2Width" type="range" min="80" max="1200" value="240">
             </label>
             <label>
               <span>Height <output id="e2HeightValue"></output></span>
-              <input id="e2Height" type="range" min="120" max="480" value="380">
+              <input id="e2Height" type="range" min="120" max="1500" value="380">
             </label>
             <label>
               <span>Visible from left <output id="e2VisibleValue"></output></span>
@@ -93,25 +93,35 @@
             <h2>Ellipse 3</h2>
             <label>
               <span>X <output id="e3XValue"></output></span>
-              <input id="e3X" type="range" min="220" max="640" value="445">
+              <input id="e3X" type="range" min="220" max="1200" value="445">
             </label>
             <label>
               <span>Width <output id="e3WidthValue"></output></span>
-              <input id="e3Width" type="range" min="80" max="520" value="224">
+              <input id="e3Width" type="range" min="80" max="1200" value="224">
             </label>
             <label>
               <span>Height <output id="e3HeightValue"></output></span>
-              <input id="e3Height" type="range" min="80" max="340" value="164">
+              <input id="e3Height" type="range" min="80" max="1000" value="164">
             </label>
-            <p class="note">Visible from left is fixed at 100.</p>
+            <label>
+              <span>Visible from left <output id="e3VisibleValue"></output></span>
+              <input id="e3Visible" type="range" min="5" max="100" value="100">
+            </label>
           </section>
 
           <section class="control-group" aria-label="Ellipse four controls">
             <h2>Ellipse 4</h2>
-            <p class="note">Uses ellipse 1's width and height.</p>
             <label>
               <span>X <output id="e4XValue"></output></span>
-              <input id="e4X" type="range" min="160" max="700" value="500">
+              <input id="e4X" type="range" min="160" max="1900" value="500">
+            </label>
+            <label>
+              <span>Width <output id="e4WidthValue"></output></span>
+              <input id="e4Width" type="range" min="80" max="2200" value="700">
+            </label>
+            <label>
+              <span>Height <output id="e4HeightValue"></output></span>
+              <input id="e4Height" type="range" min="80" max="1500" value="390">
             </label>
             <label>
               <span>Visible from left <output id="e4VisibleValue"></output></span>
@@ -123,7 +133,7 @@
             <h2>Appearance</h2>
             <label>
               <span>Stroke width <output id="strokeWidthValue"></output></span>
-              <input id="strokeWidth" type="range" min="1" max="18" value="7">
+              <input id="strokeWidth" type="range" min="1" max="40" value="7">
             </label>
             <div class="toggles">
               <label class="check">

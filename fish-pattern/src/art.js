@@ -10,6 +10,16 @@ const ART_NAME = "fish-pattern";
 const API_ART_URL = `/api/files/${encodeURIComponent(ART_NAME)}`;
 const PATTERN_STORAGE_KEY = "fish-pattern-library-v1";
 const LAYOUT_STORAGE_KEY = "fish-layout-library-v1";
+const RAINBOW_COLORS = [
+  "#e53935",
+  "#fb8c00",
+  "#fdd835",
+  "#43a047",
+  "#039be5",
+  "#3949ab",
+  "#8e24aa"
+];
+const FISH_OUTLINE_COLOR = "#18221f";
 
 const canvas = document.querySelector("#fish");
 const ctx = canvas.getContext("2d");
@@ -28,7 +38,10 @@ const defaults = {
   e3X: 445,
   e3Width: 224,
   e3Height: 164,
+  e3Visible: 100,
   e4X: 500,
+  e4Width: 700,
+  e4Height: 390,
   e4Visible: 38,
   strokeWidth: 7,
   guides: true,
@@ -81,9 +94,9 @@ function degreesToRadians(degrees) {
 }
 
 function ellipseFromOptions(options, number, label) {
-  const width = number === 4 ? options.e1Width : options[`e${number}Width`];
-  const height = number === 4 ? options.e1Height : options[`e${number}Height`];
-  const visible = number === 3 ? 100 : options[`e${number}Visible`];
+  const width = number === 4 ? options.e4Width ?? options.e1Width : options[`e${number}Width`];
+  const height = number === 4 ? options.e4Height ?? options.e1Height : options[`e${number}Height`];
+  const visible = options[`e${number}Visible`] ?? 100;
 
   return {
     label,
@@ -127,6 +140,21 @@ function drawPoint(target, point, radius) {
   target.fill();
 }
 
+function layoutFishColor(index) {
+  return RAINBOW_COLORS[index % RAINBOW_COLORS.length];
+}
+
+function mixHexColors(colorA, colorB) {
+  const hexA = colorA.replace("#", "");
+  const hexB = colorB.replace("#", "");
+  const channels = [0, 2, 4].map((offset) => {
+    const a = parseInt(hexA.slice(offset, offset + 2), 16);
+    const b = parseInt(hexB.slice(offset, offset + 2), 16);
+    return Math.round((a + b) / 2).toString(16).padStart(2, "0");
+  });
+  return `#${channels.join("")}`;
+}
+
 function drawGuides(target, options, ellipses, width = FISH_BOX.width) {
   target.save();
   target.strokeStyle = "rgba(223, 91, 53, 0.72)";
@@ -155,17 +183,53 @@ function drawPatternShape(target, options, settings = {}) {
   const ellipses = fishEllipses(options);
   const showGuides = Boolean(settings.guides);
   const fullEllipses = Boolean(settings.fullEllipses);
+  const color = settings.color || FISH_OUTLINE_COLOR;
 
   if (showGuides) drawGuides(target, options, ellipses);
 
-  target.strokeStyle = "#18221f";
+  target.strokeStyle = color;
   target.lineWidth = options.strokeWidth;
   target.lineCap = "round";
   target.lineJoin = "round";
   ellipses.forEach((ellipse) => drawEllipseArc(target, ellipse, fullEllipses));
 
-  target.fillStyle = "#18221f";
+  target.fillStyle = color;
   drawPoint(target, { x: options.eyeX, y: AXIS_Y }, options.eyeRadius);
+}
+
+function drawPatternAreas(target, options, color) {
+  target.fillStyle = color;
+  beginFishAreaPath(target, options);
+  target.fill();
+}
+
+function beginFishAreaPath(target, options) {
+  const ellipses = fishEllipses(options);
+  target.beginPath();
+  addCurvePairAreaSubpath(target, ellipses[0], ellipses[1]);
+  addCurvePairAreaSubpath(target, ellipses[2], ellipses[3]);
+}
+
+function addCurvePairAreaSubpath(target, first, second) {
+  const firstAngles = visibleArcAngles(first);
+  const secondAngles = visibleArcAngles(second);
+  const firstStart = ellipsePoint(first, firstAngles.start);
+  const firstEnd = ellipsePoint(first, firstAngles.end);
+  const secondEnd = ellipsePoint(second, secondAngles.end);
+
+  target.moveTo(firstStart.x, firstStart.y);
+  target.ellipse(first.x, first.y, first.rx, first.ry, 0, firstAngles.start, firstAngles.end);
+  target.lineTo(secondEnd.x, secondEnd.y);
+  target.ellipse(second.x, second.y, second.rx, second.ry, 0, secondAngles.end, secondAngles.start, true);
+  target.lineTo(firstStart.x, firstStart.y);
+  target.closePath();
+}
+
+function ellipsePoint(ellipse, angle) {
+  return {
+    x: ellipse.x + Math.cos(angle) * ellipse.rx,
+    y: ellipse.y + Math.sin(angle) * ellipse.ry
+  };
 }
 
 function withViewTransform(target, box, draw) {
@@ -199,9 +263,8 @@ function drawPatternView(target, options) {
   });
 }
 
-function drawLayoutFish(target, item, pattern) {
+function applyLayoutFishTransform(target, item) {
   const zoom = getLayoutZoom();
-  target.save();
   target.translate(item.x, LAYOUT_AXIS_Y);
   target.scale(zoom, zoom);
   target.translate(-FISH_BOX.width / 2, -AXIS_Y);
@@ -209,8 +272,59 @@ function drawLayoutFish(target, item, pattern) {
     target.translate(FISH_BOX.width, 0);
     target.scale(-1, 1);
   }
-  drawPatternShape(target, pattern.params, { guides: false, fullEllipses: false });
+}
+
+function undoLayoutFishTransform(target, item) {
+  const zoom = getLayoutZoom();
+  if (item.flipped) {
+    target.scale(-1, 1);
+    target.translate(-FISH_BOX.width, 0);
+  }
+  target.translate(FISH_BOX.width / 2, AXIS_Y);
+  target.scale(1 / zoom, 1 / zoom);
+  target.translate(-item.x, -LAYOUT_AXIS_Y);
+}
+
+function withLayoutFishTransform(target, item, draw) {
+  target.save();
+  applyLayoutFishTransform(target, item);
+  draw();
   target.restore();
+}
+
+function drawLayoutFishArea(target, item, pattern, color) {
+  withLayoutFishTransform(target, item, () => {
+    target.globalAlpha = 1;
+    target.globalCompositeOperation = "source-over";
+    drawPatternAreas(target, pattern.params, color);
+  });
+}
+
+function drawLayoutFishIntersection(target, first, second) {
+  target.save();
+  applyLayoutFishTransform(target, first.item);
+  beginFishAreaPath(target, first.pattern.params);
+  target.clip();
+  undoLayoutFishTransform(target, first.item);
+  applyLayoutFishTransform(target, second.item);
+  drawPatternAreas(target, second.pattern.params, mixHexColors(first.color, second.color));
+  target.restore();
+}
+
+function drawLayoutFishIntersections(target, records) {
+  records.forEach((first, firstIndex) => {
+    records.slice(firstIndex + 1).forEach((second) => {
+      drawLayoutFishIntersection(target, first, second);
+    });
+  });
+}
+
+function drawLayoutFishOutline(target, item, pattern) {
+  withLayoutFishTransform(target, item, () => {
+    target.globalAlpha = 1;
+    target.globalCompositeOperation = "source-over";
+    drawPatternShape(target, pattern.params, { guides: false, fullEllipses: false, color: FISH_OUTLINE_COLOR });
+  });
 }
 
 function drawLayoutView(target) {
@@ -228,9 +342,22 @@ function drawLayoutView(target) {
     target.stroke();
     target.restore();
 
-    layoutItems.forEach((item) => {
-      const pattern = savedPatterns.find((saved) => saved.id === item.patternId);
-      if (pattern) drawLayoutFish(target, item, pattern);
+    const records = layoutItems
+      .map((item, index) => ({
+        item,
+        pattern: savedPatterns.find((saved) => saved.id === item.patternId),
+        color: layoutFishColor(index)
+      }))
+      .filter((record) => record.pattern);
+
+    records.forEach(({ item, pattern, color }) => {
+      drawLayoutFishArea(target, item, pattern, color);
+    });
+
+    drawLayoutFishIntersections(target, records);
+
+    records.forEach(({ item, pattern }) => {
+      drawLayoutFishOutline(target, item, pattern);
     });
   });
 }
@@ -283,7 +410,7 @@ function updatePatternReadout(options) {
     `Shared center line: y=${AXIS_Y}`,
     `Eye center: (${options.eyeX}, ${AXIS_Y})`,
     `Ellipse centers: ${ellipses.map((ellipse) => `(${ellipse.x}, ${ellipse.y})`).join(", ")}`,
-    `Ellipse 1 and 4 share size: ${options.e1Width} x ${options.e1Height}`
+    `Ellipse 4 size: ${options.e4Width} x ${options.e4Height}`
   ].join("<br>");
 
   Object.entries(outputs).forEach(([name, output]) => {
@@ -547,11 +674,21 @@ function renderLayoutItems() {
 
   layoutItems.forEach((item, index) => {
     const pattern = savedPatterns.find((saved) => saved.id === item.patternId);
+    const color = layoutFishColor(index);
     const row = document.createElement("div");
     row.className = "list-row";
 
+    const heading = document.createElement("div");
+    heading.className = "fish-row-heading";
+
+    const swatch = document.createElement("span");
+    swatch.className = "fish-swatch";
+    swatch.style.backgroundColor = color;
+    swatch.setAttribute("aria-label", `Fish ${index + 1} color`);
+
     const title = document.createElement("strong");
     title.textContent = `${index + 1}. ${pattern ? pattern.name : "Missing pattern"}${item.flipped ? " flipped" : ""}`;
+    heading.append(swatch, title);
 
     const label = document.createElement("label");
     label.className = "compact-label";
@@ -593,7 +730,7 @@ function renderLayoutItems() {
     remove.textContent = "Remove";
     remove.addEventListener("click", () => removeLayoutFish(item.id));
 
-    row.append(title, label, remove);
+    row.append(heading, label, remove);
     controls.layoutItems.append(row);
   });
 }
@@ -695,13 +832,41 @@ function arcPath(ellipse, fullEllipse) {
   return `M ${startPoint.x} ${startPoint.y} A ${ellipse.rx} ${ellipse.ry} 0 ${largeArc} 1 ${endPoint.x} ${endPoint.y}`;
 }
 
-function patternSvgContent(options, fullEllipses = false) {
+function curvePairAreaPath(first, second) {
+  const firstAngles = visibleArcAngles(first);
+  const secondAngles = visibleArcAngles(second);
+  const firstStart = ellipsePoint(first, firstAngles.start);
+  const firstEnd = ellipsePoint(first, firstAngles.end);
+  const secondStart = ellipsePoint(second, secondAngles.start);
+  const secondEnd = ellipsePoint(second, secondAngles.end);
+  return [
+    `M ${firstStart.x} ${firstStart.y}`,
+    `A ${first.rx} ${first.ry} 0 0 1 ${firstEnd.x} ${firstEnd.y}`,
+    `L ${secondEnd.x} ${secondEnd.y}`,
+    `A ${second.rx} ${second.ry} 0 0 0 ${secondStart.x} ${secondStart.y}`,
+    "Z"
+  ].join(" ");
+}
+
+function patternSvgAreaPath(options) {
+  const ellipses = fishEllipses(options);
+  return [
+    curvePairAreaPath(ellipses[0], ellipses[1]),
+    curvePairAreaPath(ellipses[2], ellipses[3])
+  ].join(" ");
+}
+
+function patternSvgAreas(options, color) {
+  return `<path d="${patternSvgAreaPath(options)}" fill="${color}" />`;
+}
+
+function patternSvgContent(options, fullEllipses = false, color = FISH_OUTLINE_COLOR) {
   const ellipses = fishEllipses(options);
   const paths = ellipses.map((ellipse) => `<path d="${arcPath(ellipse, fullEllipses)}" />`).join("\n    ");
-  return `  <g fill="none" stroke="#18221f" stroke-width="${options.strokeWidth}" stroke-linecap="round" stroke-linejoin="round">
+  return `  <g fill="none" stroke="${color}" stroke-width="${options.strokeWidth}" stroke-linecap="round" stroke-linejoin="round">
     ${paths}
   </g>
-  <circle cx="${options.eyeX}" cy="${AXIS_Y}" r="${options.eyeRadius}" fill="#18221f" />`;
+  <circle cx="${options.eyeX}" cy="${AXIS_Y}" r="${options.eyeRadius}" fill="${color}" />`;
 }
 
 function createPatternSvg(options) {
@@ -713,24 +878,67 @@ ${patternSvgContent(options, options.fullEllipses)}
 `;
 }
 
+function layoutFishTransform(item) {
+  const zoom = getLayoutZoom();
+  return item.flipped
+    ? `translate(${item.x} ${LAYOUT_AXIS_Y}) scale(${zoom} ${zoom}) translate(${-FISH_BOX.width / 2} ${-AXIS_Y}) translate(${FISH_BOX.width} 0) scale(-1 1)`
+    : `translate(${item.x} ${LAYOUT_AXIS_Y}) scale(${zoom} ${zoom}) translate(${-FISH_BOX.width / 2} ${-AXIS_Y})`;
+}
+
 function createLayoutSvg() {
-  const instances = layoutItems
-    .map((item) => {
-      const pattern = savedPatterns.find((saved) => saved.id === item.patternId);
-      if (!pattern) return "";
-      const zoom = getLayoutZoom();
-      const transform = item.flipped
-        ? `translate(${item.x} ${LAYOUT_AXIS_Y}) scale(${zoom} ${zoom}) translate(${-FISH_BOX.width / 2} ${-AXIS_Y}) translate(${FISH_BOX.width} 0) scale(-1 1)`
-        : `translate(${item.x} ${LAYOUT_AXIS_Y}) scale(${zoom} ${zoom}) translate(${-FISH_BOX.width / 2} ${-AXIS_Y})`;
-      return `<g transform="${transform}">\n${patternSvgContent(pattern.params, false)}\n  </g>`;
-    })
-    .filter(Boolean)
+  const records = layoutItems
+    .map((item, index) => ({
+      item,
+      pattern: savedPatterns.find((saved) => saved.id === item.patternId),
+      color: layoutFishColor(index),
+      clipId: `fish-area-${index}`
+    }))
+    .filter((record) => record.pattern);
+  const clipDefs = records
+    .map(
+      ({ item, pattern, clipId }) => `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse">
+    <g transform="${layoutFishTransform(item)}">
+      <path d="${patternSvgAreaPath(pattern.params)}" />
+    </g>
+  </clipPath>`
+    )
+    .join("\n  ");
+  const areaInstances = records
+    .map(
+      ({ item, pattern, color }) => `<g transform="${layoutFishTransform(item)}">
+    ${patternSvgAreas(pattern.params, color)}
+  </g>`
+    )
+    .join("\n  ");
+  const intersectionInstances = records
+    .flatMap((first, firstIndex) =>
+      records.slice(firstIndex + 1).map((second) => {
+        const color = mixHexColors(first.color, second.color);
+        return `<g clip-path="url(#${first.clipId})">
+    <g transform="${layoutFishTransform(second.item)}">
+      ${patternSvgAreas(second.pattern.params, color)}
+    </g>
+  </g>`;
+      })
+    )
+    .join("\n  ");
+  const outlineInstances = records
+    .map(
+      ({ item, pattern }) => `<g transform="${layoutFishTransform(item)}">
+${patternSvgContent(pattern.params, false, FISH_OUTLINE_COLOR)}
+  </g>`
+    )
     .join("\n  ");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${A0_MM.width}mm" height="${A0_MM.height}mm" viewBox="0 0 ${LAYOUT_BOX.width} ${LAYOUT_BOX.height}">
+  <defs>
+  ${clipDefs}
+  </defs>
   <rect width="100%" height="100%" fill="#f7f4ed" />
-  ${instances}
+  ${areaInstances}
+  ${intersectionInstances}
+  ${outlineInstances}
 </svg>
 `;
 }

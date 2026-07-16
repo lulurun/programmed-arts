@@ -1,0 +1,26 @@
+{
+  "id": "pattern-mrnotc15-t8qdl",
+  "name": "Pattern2-mypat",
+  "params": {
+    "eyeX": 94,
+    "eyeRadius": 8,
+    "e1X": 934,
+    "e1Width": 1832,
+    "e1Height": 1203,
+    "e1Visible": 85,
+    "e2X": 845,
+    "e2Width": 682,
+    "e2Height": 1252,
+    "e2Visible": 77,
+    "e3X": 805,
+    "e3Width": 685,
+    "e3Height": 450,
+    "e3Visible": 85,
+    "e4X": 772,
+    "e4Width": 255,
+    "e4Height": 468,
+    "e4Visible": 77,
+    "strokeWidth": 7
+  },
+  "type": "pattern"
+}

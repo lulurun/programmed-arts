@@ -1,0 +1,26 @@
+{
+  "id": "pattern-mrnh0ijc-5ujcq",
+  "name": "Pattern 1",
+  "params": {
+    "eyeX": 94,
+    "eyeRadius": 8,
+    "e1X": 408,
+    "e1Width": 685,
+    "e1Height": 450,
+    "e1Visible": 85,
+    "e2X": 375,
+    "e2Width": 255,
+    "e2Height": 468,
+    "e2Visible": 77,
+    "e3X": 360,
+    "e3Width": 224,
+    "e3Height": 175,
+    "e3Visible": 100,
+    "e4X": 676,
+    "e4Width": 685,
+    "e4Height": 450,
+    "e4Visible": 25,
+    "strokeWidth": 7
+  },
+  "type": "pattern"
+}
