@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Single Fish Ellipse Renderer</title>
+    <link rel="stylesheet" href="src/styles.css">
+  </head>
+  <body>
+    <main class="app">
+      <section class="stage" aria-label="Single fish preview">
+        <canvas id="fish" width="980" height="720"></canvas>
+      </section>
+
+      <aside class="panel" aria-label="Fish controls">
+        <div class="title-block">
+          <p class="kicker">4 ellipses + 1 circle</p>
+          <h1>Fish Ellipse Tool</h1>
+        </div>
+
+        <div class="tabs" role="tablist" aria-label="View mode">
+          <button id="patternViewButton" class="tab is-active" type="button">Pattern</button>
+          <button id="layoutViewButton" class="tab" type="button">Layout</button>
+        </div>
+
+        <div class="readout" id="readout"></div>
+
+        <div id="patternControls">
+          <section class="control-group" aria-label="Saved pattern controls">
+            <h2>Load Pattern</h2>
+            <label>
+              <span>Load saved pattern</span>
+              <select id="patternLoadSelect">
+                <option value="">No saved patterns</option>
+              </select>
+            </label>
+            <button id="loadPattern" type="button">Load Pattern</button>
+          </section>
+
+          <section class="control-group" aria-label="Eye controls">
+            <h2>Eye</h2>
+            <label>
+              <span>Eye X <output id="eyeXValue"></output></span>
+              <input id="eyeX" type="range" min="20" max="220" value="88">
+            </label>
+            <label>
+              <span>Eye radius <output id="eyeRadiusValue"></output></span>
+              <input id="eyeRadius" type="range" min="4" max="34" value="13">
+            </label>
+          </section>
+
+          <section class="control-group" aria-label="Ellipse one controls">
+            <h2>Ellipse 1: Outer Body</h2>
+            <label>
+              <span>X <output id="e1XValue"></output></span>
+              <input id="e1X" type="range" min="120" max="560" value="420">
+            </label>
+            <label>
+              <span>Width <output id="e1WidthValue"></output></span>
+              <input id="e1Width" type="range" min="160" max="860" value="700">
+            </label>
+            <label>
+              <span>Height <output id="e1HeightValue"></output></span>
+              <input id="e1Height" type="range" min="120" max="520" value="390">
+            </label>
+            <label>
+              <span>Visible from left <output id="e1VisibleValue"></output></span>
+              <input id="e1Visible" type="range" min="5" max="100" value="100">
+            </label>
+          </section>
+
+          <section class="control-group" aria-label="Ellipse two controls">
+            <h2>Ellipse 2</h2>
+            <label>
+              <span>X <output id="e2XValue"></output></span>
+              <input id="e2X" type="range" min="180" max="620" value="420">
+            </label>
+            <label>
+              <span>Width <output id="e2WidthValue"></output></span>
+              <input id="e2Width" type="range" min="80" max="560" value="240">
+            </label>
+            <label>
+              <span>Height <output id="e2HeightValue"></output></span>
+              <input id="e2Height" type="range" min="120" max="480" value="380">
+            </label>
+            <label>
+              <span>Visible from left <output id="e2VisibleValue"></output></span>
+              <input id="e2Visible" type="range" min="5" max="100" value="100">
+            </label>
+          </section>
+
+          <section class="control-group" aria-label="Ellipse three controls">
+            <h2>Ellipse 3</h2>
+            <label>
+              <span>X <output id="e3XValue"></output></span>
+              <input id="e3X" type="range" min="220" max="640" value="445">
+            </label>
+            <label>
+              <span>Width <output id="e3WidthValue"></output></span>
+              <input id="e3Width" type="range" min="80" max="520" value="224">
+            </label>
+            <label>
+              <span>Height <output id="e3HeightValue"></output></span>
+              <input id="e3Height" type="range" min="80" max="340" value="164">
+            </label>
+            <p class="note">Visible from left is fixed at 100.</p>
+          </section>
+
+          <section class="control-group" aria-label="Ellipse four controls">
+            <h2>Ellipse 4</h2>
+            <p class="note">Uses ellipse 1's width and height.</p>
+            <label>
+              <span>X <output id="e4XValue"></output></span>
+              <input id="e4X" type="range" min="160" max="700" value="500">
+            </label>
+            <label>
+              <span>Visible from left <output id="e4VisibleValue"></output></span>
+              <input id="e4Visible" type="range" min="5" max="100" value="38">
+            </label>
+          </section>
+
+          <section class="control-group" aria-label="Appearance controls">
+            <h2>Appearance</h2>
+            <label>
+              <span>Stroke width <output id="strokeWidthValue"></output></span>
+              <input id="strokeWidth" type="range" min="1" max="18" value="7">
+            </label>
+            <div class="toggles">
+              <label class="check">
+                <input id="guides" type="checkbox" checked>
+                <span>Guides</span>
+              </label>
+              <label class="check">
+                <input id="fullEllipses" type="checkbox">
+                <span>Full ellipses</span>
+              </label>
+            </div>
+          </section>
+        </div>
+
+        <div id="layoutControls" hidden>
+          <section class="control-group" aria-label="Saved layout controls">
+            <h2>Load Layout</h2>
+            <label>
+              <span>Layout zoom <output id="layoutZoomValue">100%</output></span>
+              <input id="layoutZoom" type="range" min="40" max="220" value="100">
+            </label>
+            <label>
+              <span>Load saved layout</span>
+              <select id="layoutLoadSelect">
+                <option value="">No saved layouts</option>
+              </select>
+            </label>
+            <button id="loadLayout" type="button">Load Layout</button>
+          </section>
+
+          <section class="control-group" aria-label="Saved patterns">
+            <h2>Saved Patterns</h2>
+            <div id="savedPatterns" class="list"></div>
+          </section>
+
+          <section class="control-group" aria-label="Layout fish list">
+            <h2>Layout Fishes</h2>
+            <div id="layoutItems" class="list"></div>
+          </section>
+        </div>
+
+        <div class="actions">
+          <div id="patternActionSheet" class="action-sheet">
+            <div class="action-row">
+              <label class="action-field">
+                <span>Pattern name</span>
+                <input id="patternName" class="text-input" type="text" value="Pattern 1">
+              </label>
+            </div>
+            <div class="action-row action-row-two">
+              <button id="savePattern" type="button">Save Pattern</button>
+              <button id="resetPattern" type="button">Reset Pattern</button>
+            </div>
+            <div class="action-row action-row-two">
+              <button id="exportPatternSvg" type="button">Export Pattern SVG</button>
+              <button id="exportPatternPng" type="button">Export Pattern PNG</button>
+            </div>
+          </div>
+
+          <div id="layoutActionSheet" class="action-sheet" hidden>
+            <div class="action-row">
+              <label class="action-field">
+                <span>Layout name</span>
+                <input id="layoutName" class="text-input" type="text" value="Layout 1">
+              </label>
+            </div>
+            <div class="action-row action-row-two">
+              <button id="saveLayout" type="button">Save Layout</button>
+              <button id="resetLayout" type="button">Reset Layout</button>
+            </div>
+            <div class="action-row action-row-two">
+              <button id="exportLayoutSvg" type="button">Export Layout SVG</button>
+              <button id="exportLayoutPng" type="button">Export Layout PNG</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <script src="src/art.js"></script>
+  </body>
+</html>

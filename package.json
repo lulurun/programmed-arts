@@ -1,0 +1,20 @@
+{
+  "name": "programmed-arts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Parametric browser-based tools for creating printable programmed art.",
+  "scripts": {
+    "start": "python3 -m http.server 4173",
+    "check": "node --check fish-pattern/src/art.js"
+  },
+  "keywords": [
+    "programmed-art",
+    "generative-art",
+    "parametric-art",
+    "poster",
+    "a4",
+    "tile-printing",
+    "canvas"
+  ],
+  "license": "UNLICENSED"
+}
