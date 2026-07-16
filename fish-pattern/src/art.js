@@ -6,6 +6,8 @@ const LAYOUT_X_MAX = LAYOUT_BOX.width + FISH_BOX.width;
 const AXIS_Y = FISH_BOX.height / 2;
 const LAYOUT_AXIS_Y = LAYOUT_BOX.height / 2;
 const VIEW_PADDING = 56;
+const ART_NAME = "fish-pattern";
+const API_ART_URL = `/api/files/${encodeURIComponent(ART_NAME)}`;
 const PATTERN_STORAGE_KEY = "fish-pattern-library-v1";
 const LAYOUT_STORAGE_KEY = "fish-layout-library-v1";
 
@@ -70,8 +72,8 @@ patternParamNames.forEach((name) => {
 });
 
 let currentView = "pattern";
-let savedPatterns = loadSavedPatterns();
-let savedLayouts = loadSavedLayouts();
+let savedPatterns = [];
+let savedLayouts = [];
 let layoutItems = [];
 
 function degreesToRadians(degrees) {
@@ -303,41 +305,85 @@ function getLayoutZoom() {
   return Number(controls.layoutZoom.value) / 100;
 }
 
-function loadSavedPatterns() {
+function loadLegacyLocalStorageItems(storageKey) {
   try {
-    const parsed = JSON.parse(localStorage.getItem(PATTERN_STORAGE_KEY) || "[]");
+    const parsed = JSON.parse(localStorage.getItem(storageKey) || "[]");
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 }
 
-function persistSavedPatterns() {
-  localStorage.setItem(PATTERN_STORAGE_KEY, JSON.stringify(savedPatterns));
+function readLegacyLocalStorageLibrary() {
+  return {
+    patterns: loadLegacyLocalStorageItems(PATTERN_STORAGE_KEY),
+    layouts: loadLegacyLocalStorageItems(LAYOUT_STORAGE_KEY)
+  };
 }
 
-function loadSavedLayouts() {
+async function loadSavedLibraryFromApi() {
   try {
-    const parsed = JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY) || "[]");
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
+    const response = await fetch(API_ART_URL);
+    if (!response.ok) return;
+    const library = await response.json();
+    savedPatterns = Array.isArray(library.patterns) ? library.patterns : [];
+    savedLayouts = Array.isArray(library.layouts) ? library.layouts : [];
+    renderSavedPatterns();
+    renderLayoutItems();
+    updateLayoutLoadSelect();
+    render();
+  } catch (error) {
+    console.warn("Could not load saved art from backend API.", error);
   }
 }
 
-function persistSavedLayouts() {
-  localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(savedLayouts));
+async function exportLocalStorageToServer() {
+  const legacy = readLegacyLocalStorageLibrary();
+  const patternResults = await Promise.allSettled(
+    legacy.patterns.map((pattern) => persistArtifactToApi("pattern", pattern))
+  );
+  const layoutResults = await Promise.allSettled(
+    legacy.layouts.map((layout) => persistArtifactToApi("layout", layout))
+  );
+  const failed = [...patternResults, ...layoutResults].filter((result) => result.status === "rejected");
+
+  await loadSavedLibraryFromApi();
+  const summary = {
+    patterns: legacy.patterns.length,
+    layouts: legacy.layouts.length,
+    failed: failed.length
+  };
+  console.info("Exported localStorage art library to server files.", summary);
+  return summary;
 }
 
-function saveCurrentPattern() {
+async function persistArtifactToApi(kind, artifact) {
+  const collection = kind === "pattern" ? "patterns" : "layouts";
+  const name = encodeURIComponent(artifact.name || artifact.id || "untitled");
+  const response = await fetch(`${API_ART_URL}/${collection}/${name}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(artifact)
+  });
+  if (!response.ok) {
+    throw new Error(`Save failed with ${response.status}`);
+  }
+}
+
+async function saveCurrentPattern() {
   const name = controls.patternName.value.trim() || `Pattern ${savedPatterns.length + 1}`;
   const pattern = {
     id: `pattern-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
     name,
     params: getSavedParamsFromControls()
   };
-  savedPatterns = [...savedPatterns, pattern];
-  persistSavedPatterns();
+  try {
+    await persistArtifactToApi("pattern", pattern);
+  } catch (error) {
+    console.error("Pattern save failed.", error);
+    return;
+  }
+  savedPatterns = [...savedPatterns.filter((saved) => saved.name !== pattern.name), pattern];
   controls.patternName.value = `Pattern ${savedPatterns.length + 1}`;
   updatePatternLoadSelect(pattern.id);
   renderSavedPatterns();
@@ -354,7 +400,6 @@ function loadSelectedPattern() {
 function deletePattern(id) {
   savedPatterns = savedPatterns.filter((pattern) => pattern.id !== id);
   layoutItems = layoutItems.filter((item) => item.patternId !== id);
-  persistSavedPatterns();
   renderSavedPatterns();
   renderLayoutItems();
   render();
@@ -385,7 +430,7 @@ function removeLayoutFish(id) {
   render();
 }
 
-function saveCurrentLayout() {
+async function saveCurrentLayout() {
   const name = controls.layoutName.value.trim() || `Layout ${savedLayouts.length + 1}`;
   const layout = {
     id: `layout-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
@@ -393,8 +438,13 @@ function saveCurrentLayout() {
     zoom: Number(controls.layoutZoom.value),
     items: layoutItems.map((item) => ({ ...item }))
   };
-  savedLayouts = [...savedLayouts, layout];
-  persistSavedLayouts();
+  try {
+    await persistArtifactToApi("layout", layout);
+  } catch (error) {
+    console.error("Layout save failed.", error);
+    return;
+  }
+  savedLayouts = [...savedLayouts.filter((saved) => saved.name !== layout.name), layout];
   controls.layoutName.value = `Layout ${savedLayouts.length + 1}`;
   updateLayoutLoadSelect(layout.id);
   render();
@@ -762,3 +812,5 @@ renderSavedPatterns();
 renderLayoutItems();
 updateLayoutLoadSelect();
 setView("pattern");
+loadSavedLibraryFromApi();
+window.exportLocalStorageToServer = exportLocalStorageToServer;

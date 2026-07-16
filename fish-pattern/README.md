@@ -36,10 +36,12 @@ npm start
 Then visit:
 
 ```text
-http://localhost:4173/fish-pattern/
+http://localhost:4174/fish-pattern/
 ```
 
 You can also open `fish-pattern/index.html` directly in a browser.
+When served through `npm start`, saved patterns and layouts are persisted as JSON files under `saved-art/fish-pattern/`.
+To migrate old browser-local saves, open DevTools on `http://localhost:4174/fish-pattern/` and run `exportLocalStorageToServer()`.
 
 ## Export Workflow
 

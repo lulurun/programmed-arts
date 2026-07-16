@@ -4,7 +4,7 @@
   "private": true,
   "description": "Parametric browser-based tools for creating printable programmed art.",
   "scripts": {
-    "start": "python3 -m http.server 4173",
+    "start": "python3 server.py",
     "check": "node --check fish-pattern/src/art.js"
   },
   "keywords": [

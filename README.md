@@ -17,8 +17,10 @@ npm start
 Then open:
 
 ```text
-http://localhost:4173/fish-pattern/
+http://localhost:4174/fish-pattern/
 ```
+
+Saved pattern and layout JSON files are written through `/api/files/<art-name>/...` under `saved-art/<art-name>/`.
 
 ## Checks
 
