@@ -191,7 +191,7 @@ input[type="number"] {
 }
 
 .ellipse-tabs {
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
 }
 
 .segmented {

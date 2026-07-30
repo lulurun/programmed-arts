@@ -19,7 +19,7 @@ const styleLabels = {
 
 const state = {
   page: "pattern",
-  activeEllipse: 0,
+  activePart: "eye",
   palette: "primaries",
   style: "chequer",
   showGuides: true,
@@ -58,7 +58,6 @@ const controls = {
   artPageButton: document.querySelector("#artPageButton"),
   geometryCanvas: document.querySelector("#geometryCanvas"),
   artCanvas: document.querySelector("#artCanvas"),
-  patternModuleControls: document.querySelector("#patternModuleControls"),
   layoutControls: document.querySelector("#layoutControls"),
   ellipseTabs: document.querySelector("#ellipseTabs"),
   ellipseControls: document.querySelector("#ellipseControls"),
@@ -229,7 +228,7 @@ function drawEllipseWire(ctx, transform, ellipse, index) {
 
   drawPolyline(ctx, transform, sampleArc(ellipse, 72), false);
   ctx.strokeStyle = `hsla(${index * 64 + 16}, 70%, 31%, 0.95)`;
-  ctx.lineWidth = index === state.activeEllipse ? 4 : 2.5;
+  ctx.lineWidth = index === state.activePart ? 4 : 2.5;
   ctx.setLineDash([]);
   ctx.stroke();
 
@@ -289,9 +288,15 @@ function drawGeometry() {
   lastIntersections.forEach((point) => drawPoint(geometryCtx, transform, point, 5, "#147f83"));
 
   state.ellipses.forEach((ellipse, index) => {
-    drawPoint(geometryCtx, transform, ellipse, index === state.activeEllipse ? 7 : 5, "#c94f2f");
+    drawPoint(geometryCtx, transform, ellipse, index === state.activePart ? 7 : 5, "#c94f2f");
   });
-  drawPoint(geometryCtx, transform, { x: state.module.eyeX, y: state.module.eyeY }, state.module.eyeRadius, "#17201d");
+  drawPoint(
+    geometryCtx,
+    transform,
+    { x: state.module.eyeX, y: state.module.eyeY },
+    state.activePart === "eye" ? state.module.eyeRadius + 3 : state.module.eyeRadius,
+    "#17201d"
+  );
 
   controls.geometryMetric.textContent = `${lastIntersections.length} intersections`;
 }
@@ -441,7 +446,18 @@ function drawBackgroundPattern(ctx) {
 }
 
 function renderPatternReadout() {
-  const active = state.ellipses[state.activeEllipse];
+  if (state.activePart === "eye") {
+    controls.readoutTitle.textContent = "Calculated Geometry";
+    controls.readout.innerHTML = [
+      "<strong>Eye</strong>",
+      `center (${state.module.eyeX}, ${state.module.eyeY})`,
+      `radius ${state.module.eyeRadius}, stroke ${state.module.strokeWidth}`,
+      `${lastIntersections.length} ellipse intersections in the current module`
+    ].join("<br>");
+    return;
+  }
+
+  const active = state.ellipses[state.activePart];
   const pointSummary = lastIntersections.slice(0, 6).map((point) => {
     return `${point.pair} (${point.x.toFixed(1)}, ${point.y.toFixed(1)})`;
   });
@@ -518,23 +534,6 @@ function createRange(parent, config, getter, setter) {
 }
 
 function buildControls() {
-  const patternModuleFields = [
-    ["eyeX", "Eye x", -230, 40],
-    ["eyeY", "Eye y", -80, 80],
-    ["eyeRadius", "Eye radius", 3, 24],
-    ["strokeWidth", "Stroke", 1, 9, 0.2]
-  ];
-  patternModuleFields.forEach(([key, label, min, max, step]) => {
-    createRange(
-      controls.patternModuleControls,
-      { label, min, max, step },
-      () => state.module[key],
-      (value) => {
-        state.module[key] = value;
-      }
-    );
-  });
-
   const layoutFields = [
     ["columns", "Columns", 1, 11],
     ["rows", "Rows", 1, 13],
@@ -557,12 +556,12 @@ function buildControls() {
     );
   });
 
-  state.ellipses.forEach((ellipse, index) => {
+  ["Eye", "E1", "E2", "E3", "E4"].forEach((label, index) => {
     const button = document.createElement("button");
     button.type = "button";
-    button.textContent = `E${index + 1}`;
+    button.textContent = label;
     button.addEventListener("click", () => {
-      state.activeEllipse = index;
+      state.activePart = index === 0 ? "eye" : index - 1;
       rebuildEllipseControls();
       render();
     });
@@ -615,7 +614,29 @@ function rebuildEllipseControls() {
   controls.ellipseControls.innerHTML = "";
   const form = document.createElement("div");
   form.className = "ellipse-form";
-  const ellipse = state.ellipses[state.activeEllipse];
+
+  if (state.activePart === "eye") {
+    [
+      ["eyeX", "Eye x", -230, 40],
+      ["eyeY", "Eye y", -80, 80],
+      ["eyeRadius", "Eye radius", 3, 24],
+      ["strokeWidth", "Stroke", 1, 9, 0.2]
+    ].forEach(([key, label, min, max, step]) => {
+      createRange(
+        form,
+        { label, min, max, step },
+        () => state.module[key],
+        (value) => {
+          state.module[key] = value;
+        }
+      );
+    });
+    controls.ellipseControls.append(form);
+    syncButtonStates();
+    return;
+  }
+
+  const ellipse = state.ellipses[state.activePart];
   [
     ["cx", "Center x", -260, 260],
     ["cy", "Center y", -160, 160],
@@ -642,7 +663,8 @@ function syncButtonStates() {
   controls.patternPageButton.classList.toggle("is-active", state.page === "pattern");
   controls.artPageButton.classList.toggle("is-active", state.page === "art");
   [...controls.ellipseTabs.children].forEach((button, index) => {
-    button.classList.toggle("is-active", index === state.activeEllipse);
+    const part = index === 0 ? "eye" : index - 1;
+    button.classList.toggle("is-active", part === state.activePart);
   });
   [...controls.paletteControls.children].forEach((button) => {
     button.classList.toggle("is-active", button.textContent.toLowerCase() === state.palette);
@@ -669,7 +691,6 @@ function setPage(page) {
 }
 
 function clearGeneratedControls() {
-  controls.patternModuleControls.innerHTML = "";
   controls.layoutControls.innerHTML = "";
   controls.ellipseTabs.innerHTML = "";
   controls.paletteControls.innerHTML = "";
@@ -679,7 +700,7 @@ function clearGeneratedControls() {
 function resetPattern() {
   state.module = JSON.parse(JSON.stringify(defaults.module));
   state.ellipses = JSON.parse(JSON.stringify(defaults.ellipses));
-  state.activeEllipse = 0;
+  state.activePart = "eye";
   clearGeneratedControls();
   buildControls();
   render();
@@ -721,7 +742,7 @@ controls.geometryCanvas.addEventListener("pointerdown", (event) => {
   const nearest = nearestHandle(world);
   if (nearest.distance > 18) return;
   dragTarget = nearest;
-  if (nearest.type === "ellipse") state.activeEllipse = nearest.index;
+  state.activePart = nearest.type === "ellipse" ? nearest.index : "eye";
   rebuildEllipseControls();
   controls.geometryCanvas.setPointerCapture(event.pointerId);
 });
