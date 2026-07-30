@@ -1,6 +1,7 @@
 const GEOMETRY_BOX = { width: 860, height: 620 };
 const ART_BOX = { width: 1120, height: 760 };
 const MODULE_WIDTH = 420;
+const PATTERN_STROKE_WIDTH = 3.4;
 const TWO_PI = Math.PI * 2;
 
 const palettes = {
@@ -26,9 +27,7 @@ const state = {
   showFullEllipses: true,
   module: {
     eyeX: -146,
-    eyeY: 0,
-    eyeRadius: 8,
-    strokeWidth: 3.4
+    eyeRadius: 8
   },
   layout: {
     pitchY: 178,
@@ -293,7 +292,7 @@ function drawGeometry() {
   drawPoint(
     geometryCtx,
     transform,
-    { x: state.module.eyeX, y: state.module.eyeY },
+    { x: state.module.eyeX, y: 0 },
     state.activePart === "eye" ? state.module.eyeRadius + 3 : state.module.eyeRadius,
     "#17201d"
   );
@@ -322,7 +321,7 @@ function drawFishUnit(ctx, transform, offset, variant) {
 
   ctx.save();
   ctx.strokeStyle = palette[4] || "#191919";
-  ctx.lineWidth = state.module.strokeWidth;
+  ctx.lineWidth = PATTERN_STROKE_WIDTH;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   state.ellipses.forEach((ellipse) => {
@@ -333,7 +332,7 @@ function drawFishUnit(ctx, transform, offset, variant) {
     drawPolyline(ctx, transform, bottom);
     ctx.stroke();
   });
-  const eye = transform.toScreen(scaleOffset({ x: state.module.eyeX, y: state.module.eyeY }, offset));
+  const eye = transform.toScreen(scaleOffset({ x: state.module.eyeX, y: 0 }, offset));
   ctx.beginPath();
   ctx.arc(eye.x, eye.y, state.module.eyeRadius * transform.scale * state.layout.scale, 0, TWO_PI);
   ctx.fillStyle = palette[4] || "#191919";
@@ -450,8 +449,8 @@ function renderPatternReadout() {
     controls.readoutTitle.textContent = "Calculated Geometry";
     controls.readout.innerHTML = [
       "<strong>Eye</strong>",
-      `center (${state.module.eyeX}, ${state.module.eyeY})`,
-      `radius ${state.module.eyeRadius}, stroke ${state.module.strokeWidth}`,
+      `center (${state.module.eyeX}, 0)`,
+      `radius ${state.module.eyeRadius}`,
       `${lastIntersections.length} ellipse intersections in the current module`
     ].join("<br>");
     return;
@@ -466,7 +465,7 @@ function renderPatternReadout() {
     `<strong>${active.label}</strong>`,
     `center (${active.cx}, ${active.cy}), axes ${active.a} / ${active.b}, theta ${active.theta} deg`,
     `arc ${active.start} deg to ${active.end} deg; mirrored across y=0`,
-    `eye (${state.module.eyeX}, ${state.module.eyeY}), stroke ${state.module.strokeWidth}`,
+    `eye (${state.module.eyeX}, 0)`,
     pointSummary.length ? pointSummary.join("<br>") : "No ellipse intersections in the current configuration."
   ].join("<br>");
 }
@@ -618,9 +617,7 @@ function rebuildEllipseControls() {
   if (state.activePart === "eye") {
     [
       ["eyeX", "Eye x", -230, 40],
-      ["eyeY", "Eye y", -80, 80],
-      ["eyeRadius", "Eye radius", 3, 24],
-      ["strokeWidth", "Stroke", 1, 9, 0.2]
+      ["eyeRadius", "Eye radius", 3, 24]
     ].forEach(([key, label, min, max, step]) => {
       createRange(
         form,
@@ -728,7 +725,7 @@ function pointerPosition(event) {
 function nearestHandle(world) {
   const candidates = [
     ...state.ellipses.map((ellipse, index) => ({ type: "ellipse", index, x: ellipse.cx, y: ellipse.cy })),
-    { type: "eye", index: -1, x: state.module.eyeX, y: state.module.eyeY }
+    { type: "eye", index: -1, x: state.module.eyeX, y: 0 }
   ];
   return candidates.reduce((best, item) => {
     const distance = Math.hypot(world.x - item.x, world.y - item.y);
@@ -753,7 +750,6 @@ controls.geometryCanvas.addEventListener("pointermove", (event) => {
   const world = transform.toWorld(pointerPosition(event));
   if (dragTarget.type === "eye") {
     state.module.eyeX = Math.round(clamp(world.x, -230, 40));
-    state.module.eyeY = Math.round(clamp(world.y, -80, 80));
   } else {
     const ellipse = state.ellipses[dragTarget.index];
     ellipse.cx = Math.round(clamp(world.x, -260, 260));
@@ -794,10 +790,10 @@ function createUnitSvg(offset, flip, variant) {
   }).join("\n      ");
   return `<g transform="${transform}">
     <path d="${svgPolyline(fishOutlinePoints())} Z" fill="${fill}" opacity="0.82" />
-    <g fill="none" stroke="${palette[4] || "#191919"}" stroke-width="${state.module.strokeWidth}" stroke-linecap="round" stroke-linejoin="round">
+    <g fill="none" stroke="${palette[4] || "#191919"}" stroke-width="${PATTERN_STROKE_WIDTH}" stroke-linecap="round" stroke-linejoin="round">
       ${paths}
     </g>
-    <circle cx="${state.module.eyeX}" cy="${state.module.eyeY}" r="${state.module.eyeRadius}" fill="${palette[4] || "#191919"}" />
+    <circle cx="${state.module.eyeX}" cy="0" r="${state.module.eyeRadius}" fill="${palette[4] || "#191919"}" />
   </g>`;
 }
 
