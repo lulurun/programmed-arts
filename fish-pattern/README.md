@@ -18,6 +18,10 @@ All ellipses are symmetric around the center line. E1 and E4 always share width 
 
 The pattern canvas highlights calculated ellipse intersections and supports dragging ellipse handles horizontally or dragging the eye horizontally. The artwork page updates immediately from the current pattern.
 
+Parameter changes are saved to browser local storage in real time and restored on reload.
+
+Use `Save Pattern` on the Pattern page to persist the current reusable pattern to the server under `saved-art/fish-pattern/`.
+
 Artwork layout controls include:
 
 - row and column counts

@@ -167,7 +167,8 @@ input[type="range"] {
   accent-color: var(--accent);
 }
 
-input[type="number"] {
+input[type="number"],
+input[type="text"] {
   width: 100%;
   min-height: 32px;
   padding: 0 9px;
@@ -265,6 +266,13 @@ button:hover {
 
 .readout strong {
   color: var(--ink);
+}
+
+.save-status {
+  min-height: 18px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .actions {

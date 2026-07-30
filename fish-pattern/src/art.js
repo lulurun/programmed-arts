@@ -2,6 +2,8 @@ const GEOMETRY_BOX = { width: 860, height: 620 };
 const ART_BOX = { width: 1120, height: 760 };
 const MODULE_WIDTH = 420;
 const PATTERN_STROKE_WIDTH = 3.4;
+const ART_NAME = "fish-pattern";
+const LOCAL_STATE_KEY = "fish-tessellation-lab-state-v1";
 const TWO_PI = Math.PI * 2;
 
 const palettes = {
@@ -64,6 +66,9 @@ const controls = {
   styleControls: document.querySelector("#styleControls"),
   showGuides: document.querySelector("#showGuides"),
   showFullEllipses: document.querySelector("#showFullEllipses"),
+  patternName: document.querySelector("#patternName"),
+  savePatternButton: document.querySelector("#savePatternButton"),
+  patternSaveStatus: document.querySelector("#patternSaveStatus"),
   readout: document.querySelector("#readout"),
   readoutTitle: document.querySelector("#readoutTitle"),
   geometryMetric: document.querySelector("#geometryMetric"),
@@ -88,6 +93,56 @@ function cloneDefaults() {
 }
 
 const defaults = cloneDefaults();
+
+function apiPath(path) {
+  return new URL(`../api/files/${encodeURIComponent(ART_NAME)}${path}`, window.location.href).pathname;
+}
+
+function cloneCurrentParams() {
+  return JSON.parse(JSON.stringify({
+    module: state.module,
+    layout: state.layout,
+    ellipses: state.ellipses,
+    palette: state.palette,
+    style: state.style,
+    showGuides: state.showGuides,
+    showFullEllipses: state.showFullEllipses
+  }));
+}
+
+function saveLocalState() {
+  try {
+    localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(cloneCurrentParams()));
+  } catch (error) {
+    console.warn("Could not save fish tessellation state locally.", error);
+  }
+}
+
+function applyStoredState() {
+  try {
+    const raw = localStorage.getItem(LOCAL_STATE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (saved && typeof saved === "object") {
+      if (saved.module && typeof saved.module === "object") {
+        state.module = { ...state.module, ...saved.module };
+      }
+      if (saved.layout && typeof saved.layout === "object") {
+        state.layout = { ...state.layout, ...saved.layout };
+      }
+      if (Array.isArray(saved.ellipses) && saved.ellipses.length === state.ellipses.length) {
+        state.ellipses = state.ellipses.map((ellipse, index) => ({ ...ellipse, ...saved.ellipses[index] }));
+      }
+      if (palettes[saved.palette]) state.palette = saved.palette;
+      if (styleLabels[saved.style]) state.style = saved.style;
+      if (typeof saved.showGuides === "boolean") state.showGuides = saved.showGuides;
+      if (typeof saved.showFullEllipses === "boolean") state.showFullEllipses = saved.showFullEllipses;
+      normalizeEllipseConstraints();
+    }
+  } catch (error) {
+    console.warn("Could not load fish tessellation state from local storage.", error);
+  }
+}
 
 function radians(degrees) {
   return degrees * Math.PI / 180;
@@ -540,6 +595,7 @@ function render() {
   } else {
     renderArtReadout();
   }
+  saveLocalState();
 }
 
 function createRange(parent, config, getter, setter) {
@@ -584,6 +640,9 @@ function createRange(parent, config, getter, setter) {
 }
 
 function buildControls() {
+  controls.showGuides.checked = state.showGuides;
+  controls.showFullEllipses.checked = state.showFullEllipses;
+
   const layoutFields = [
     ["columns", "Columns", 1, 11],
     ["rows", "Rows", 1, 13],
@@ -654,6 +713,7 @@ function buildControls() {
   controls.artPageButton.onclick = () => setPage("art");
   controls.resetPatternButton.onclick = resetPattern;
   controls.resetLayoutButton.onclick = resetLayout;
+  controls.savePatternButton.onclick = savePatternToServer;
   controls.exportSvgButton.onclick = exportSvg;
   controls.exportPngButton.onclick = exportPng;
   rebuildEllipseControls();
@@ -748,6 +808,10 @@ function resetPattern() {
   state.module = JSON.parse(JSON.stringify(defaults.module));
   state.ellipses = JSON.parse(JSON.stringify(defaults.ellipses));
   state.activePart = "eye";
+  state.showGuides = defaults.showGuides ?? true;
+  state.showFullEllipses = defaults.showFullEllipses ?? true;
+  controls.showGuides.checked = state.showGuides;
+  controls.showFullEllipses.checked = state.showFullEllipses;
   clearGeneratedControls();
   buildControls();
   render();
@@ -816,6 +880,36 @@ controls.geometryCanvas.addEventListener("pointermove", (event) => {
 controls.geometryCanvas.addEventListener("pointerup", () => {
   dragTarget = null;
 });
+
+async function savePatternToServer() {
+  const name = controls.patternName.value.trim() || "Pattern 1";
+  const pattern = {
+    id: `pattern-${Date.now().toString(36)}`,
+    name,
+    savedAt: new Date().toISOString(),
+    module: JSON.parse(JSON.stringify(state.module)),
+    ellipses: JSON.parse(JSON.stringify(state.ellipses))
+  };
+
+  controls.patternSaveStatus.textContent = "Saving...";
+  controls.savePatternButton.disabled = true;
+  try {
+    const response = await fetch(apiPath(`/patterns/${encodeURIComponent(name)}`), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(pattern)
+    });
+    if (!response.ok) {
+      throw new Error(`Save failed with ${response.status}`);
+    }
+    controls.patternSaveStatus.textContent = `Saved ${name}`;
+  } catch (error) {
+    console.error("Pattern save failed.", error);
+    controls.patternSaveStatus.textContent = "Save failed";
+  } finally {
+    controls.savePatternButton.disabled = false;
+  }
+}
 
 function exportPng() {
   const output = document.createElement("canvas");
@@ -886,5 +980,6 @@ function download(filename, href) {
   link.click();
 }
 
+applyStoredState();
 buildControls();
 setPage("pattern");
