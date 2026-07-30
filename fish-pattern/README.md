@@ -4,18 +4,19 @@ A browser-based editor for generating an elliptical fish tessellation from four 
 
 The app has two synchronized pages:
 
-- `Pattern`: creates the single repeatable fish module from four rotated ellipses, mirrored arcs, and a circular eye fixed on the center axis. Eye and E1-E4 are selected from the same five-button row.
+- `Pattern`: creates the single repeatable fish module from four center-line-symmetric ellipses, mirrored arcs, and a circular eye fixed on the center axis. Eye and E1-E4 are selected from the same five-button row.
 - `Artwork`: uses the current module to create the final tessellated art with layout, spacing, scale, color palette, and fill style parameters.
 
 Each ellipse exposes:
 
-- center `cx`, `cy`
-- semi-major axis `a`
-- semi-minor axis `b`
-- rotation `theta`
-- arc start and end angles
+- leftmost x position
+- width
+- height
+- percent visible from the left
 
-The pattern canvas highlights calculated ellipse intersections and supports dragging ellipse centers or the eye point. The artwork page updates immediately from the current pattern.
+All ellipses are symmetric around the center line. E1 and E4 always share width and height. E2 and E3 always share the same leftmost x position.
+
+The pattern canvas highlights calculated ellipse intersections and supports dragging ellipse handles horizontally or dragging the eye horizontally. The artwork page updates immediately from the current pattern.
 
 Artwork layout controls include:
 

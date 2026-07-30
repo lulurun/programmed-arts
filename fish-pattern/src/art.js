@@ -41,10 +41,10 @@ const state = {
     scale: 1
   },
   ellipses: [
-    { label: "C1 Head / outer", cx: -28, cy: 0, a: 236, b: 112, theta: 0, start: 128, end: 232 },
-    { label: "C2 Gill", cx: -94, cy: 0, a: 72, b: 128, theta: -5, start: 58, end: 302 },
-    { label: "C3 Body", cx: 44, cy: 0, a: 142, b: 68, theta: 9, start: 154, end: 334 },
-    { label: "C4 Tail root", cx: 112, cy: 0, a: 214, b: 116, theta: 0, start: 148, end: 212 }
+    { label: "C1 Head / outer", leftX: -264, width: 472, height: 224, visible: 58 },
+    { label: "C2 Gill", leftX: -166, width: 144, height: 256, visible: 100 },
+    { label: "C3 Body", leftX: -166, width: 284, height: 136, visible: 100 },
+    { label: "C4 Tail root", leftX: -102, width: 472, height: 224, visible: 36 }
   ]
 };
 
@@ -98,31 +98,69 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+function ellipseGeometry(ellipse) {
+  return {
+    label: ellipse.label,
+    leftX: ellipse.leftX,
+    width: ellipse.width,
+    height: ellipse.height,
+    visible: ellipse.visible,
+    cx: ellipse.leftX + ellipse.width / 2,
+    cy: 0,
+    a: ellipse.width / 2,
+    b: ellipse.height / 2
+  };
+}
+
+function normalizeEllipseConstraints(sourceIndex = -1) {
+  const e1 = state.ellipses[0];
+  const e2 = state.ellipses[1];
+  const e3 = state.ellipses[2];
+  const e4 = state.ellipses[3];
+
+  if (sourceIndex === 3) {
+    e1.width = e4.width;
+    e1.height = e4.height;
+  } else {
+    e4.width = e1.width;
+    e4.height = e1.height;
+  }
+
+  if (sourceIndex === 2) {
+    e2.leftX = e3.leftX;
+  } else {
+    e3.leftX = e2.leftX;
+  }
+
+  state.ellipses.forEach((ellipse) => {
+    ellipse.leftX = Math.round(ellipse.leftX);
+    ellipse.width = Math.round(ellipse.width);
+    ellipse.height = Math.round(ellipse.height);
+    ellipse.visible = Math.round(clamp(ellipse.visible, 1, 100));
+  });
+}
+
 function ellipsePoint(ellipse, angle) {
+  const normalized = ellipseGeometry(ellipse);
   const c = Math.cos(angle);
   const s = Math.sin(angle);
-  const r = radians(ellipse.theta);
-  const cr = Math.cos(r);
-  const sr = Math.sin(r);
   return {
-    x: ellipse.cx + ellipse.a * c * cr - ellipse.b * s * sr,
-    y: ellipse.cy + ellipse.a * c * sr + ellipse.b * s * cr
+    x: normalized.cx + normalized.a * c,
+    y: normalized.cy + normalized.b * s
   };
 }
 
 function ellipseValue(ellipse, point) {
-  const r = radians(-ellipse.theta);
-  const dx = point.x - ellipse.cx;
-  const dy = point.y - ellipse.cy;
-  const x = dx * Math.cos(r) - dy * Math.sin(r);
-  const y = dx * Math.sin(r) + dy * Math.cos(r);
-  return (x * x) / (ellipse.a * ellipse.a) + (y * y) / (ellipse.b * ellipse.b) - 1;
+  const normalized = ellipseGeometry(ellipse);
+  const x = point.x - normalized.cx;
+  const y = point.y - normalized.cy;
+  return (x * x) / (normalized.a * normalized.a) + (y * y) / (normalized.b * normalized.b) - 1;
 }
 
 function sampleArc(ellipse, steps = 96, mirrorY = false) {
-  const start = radians(ellipse.start);
-  let end = radians(ellipse.end);
-  if (end <= start) end += TWO_PI;
+  const halfAngle = Math.PI * ellipse.visible / 200;
+  const start = Math.PI - halfAngle;
+  const end = Math.PI + halfAngle;
   const points = [];
   for (let i = 0; i <= steps; i += 1) {
     const point = ellipsePoint(ellipse, start + (end - start) * i / steps);
@@ -217,6 +255,7 @@ function drawPolyline(ctx, transform, points, close = false) {
 }
 
 function drawEllipseWire(ctx, transform, ellipse, index) {
+  const normalized = ellipseGeometry(ellipse);
   if (state.showFullEllipses) {
     drawPolyline(ctx, transform, sampleEllipse(ellipse), true);
     ctx.strokeStyle = `hsla(${index * 64 + 16}, 62%, 37%, 0.34)`;
@@ -235,6 +274,17 @@ function drawEllipseWire(ctx, transform, ellipse, index) {
   ctx.strokeStyle = `hsla(${index * 64 + 16}, 70%, 31%, 0.55)`;
   ctx.lineWidth = 2;
   ctx.stroke();
+
+  const left = transform.toScreen({ x: normalized.leftX, y: 0 });
+  ctx.save();
+  ctx.strokeStyle = "rgba(23, 32, 29, 0.34)";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(left.x, left.y - 8);
+  ctx.lineTo(left.x, left.y + 8);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawPoint(ctx, transform, point, radius, color) {
@@ -287,7 +337,8 @@ function drawGeometry() {
   lastIntersections.forEach((point) => drawPoint(geometryCtx, transform, point, 5, "#147f83"));
 
   state.ellipses.forEach((ellipse, index) => {
-    drawPoint(geometryCtx, transform, ellipse, index === state.activePart ? 7 : 5, "#c94f2f");
+    const normalized = ellipseGeometry(ellipse);
+    drawPoint(geometryCtx, transform, normalized, index === state.activePart ? 7 : 5, "#c94f2f");
   });
   drawPoint(
     geometryCtx,
@@ -463,8 +514,8 @@ function renderPatternReadout() {
   controls.readoutTitle.textContent = "Calculated Geometry";
   controls.readout.innerHTML = [
     `<strong>${active.label}</strong>`,
-    `center (${active.cx}, ${active.cy}), axes ${active.a} / ${active.b}, theta ${active.theta} deg`,
-    `arc ${active.start} deg to ${active.end} deg; mirrored across y=0`,
+    `left x ${active.leftX}, size ${active.width} x ${active.height}`,
+    `${active.visible}% visible from the left; mirrored across y=0`,
     `eye (${state.module.eyeX}, 0)`,
     pointSummary.length ? pointSummary.join("<br>") : "No ellipse intersections in the current configuration."
   ].join("<br>");
@@ -634,21 +685,20 @@ function rebuildEllipseControls() {
   }
 
   const ellipse = state.ellipses[state.activePart];
-  [
-    ["cx", "Center x", -260, 260],
-    ["cy", "Center y", -160, 160],
-    ["a", "Semi-major a", 24, 300],
-    ["b", "Semi-minor b", 20, 220],
-    ["theta", "Theta", -70, 70],
-    ["start", "Arc start", 0, 359],
-    ["end", "Arc end", 1, 360]
-  ].forEach(([key, label, min, max]) => {
+  const fields = [
+    ["leftX", state.activePart === 1 || state.activePart === 2 ? "Shared left x" : "Left x", -330, 180],
+    ["width", state.activePart === 0 || state.activePart === 3 ? "Shared width" : "Width", 48, 620],
+    ["height", state.activePart === 0 || state.activePart === 3 ? "Shared height" : "Height", 36, 360],
+    ["visible", "Visible from left", 1, 100]
+  ];
+  fields.forEach(([key, label, min, max]) => {
     createRange(
       form,
       { label, min, max },
       () => ellipse[key],
       (value) => {
         ellipse[key] = value;
+        normalizeEllipseConstraints(state.activePart);
       }
     );
   });
@@ -724,7 +774,10 @@ function pointerPosition(event) {
 
 function nearestHandle(world) {
   const candidates = [
-    ...state.ellipses.map((ellipse, index) => ({ type: "ellipse", index, x: ellipse.cx, y: ellipse.cy })),
+    ...state.ellipses.map((ellipse, index) => {
+      const normalized = ellipseGeometry(ellipse);
+      return { type: "ellipse", index, x: normalized.cx, y: 0 };
+    }),
     { type: "eye", index: -1, x: state.module.eyeX, y: 0 }
   ];
   return candidates.reduce((best, item) => {
@@ -752,8 +805,8 @@ controls.geometryCanvas.addEventListener("pointermove", (event) => {
     state.module.eyeX = Math.round(clamp(world.x, -230, 40));
   } else {
     const ellipse = state.ellipses[dragTarget.index];
-    ellipse.cx = Math.round(clamp(world.x, -260, 260));
-    ellipse.cy = Math.round(clamp(world.y, -160, 160));
+    ellipse.leftX = Math.round(clamp(world.x - ellipse.width / 2, -330, 180));
+    normalizeEllipseConstraints(dragTarget.index);
   }
   clearGeneratedControls();
   buildControls();
