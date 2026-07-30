@@ -1,0 +1,7 @@
+# Programmed Arts public proxy mapping.
+# The live public proxy is generated from:
+# /home/lulurun/workspace/Eiger/tunnel/ports.txt
+#
+# Format: name  local_port  vps_port
+
+programmed-arts 4174 2174
