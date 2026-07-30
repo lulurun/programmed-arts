@@ -178,6 +178,12 @@ input[type="text"] {
   color: var(--ink);
 }
 
+input:disabled {
+  color: var(--muted);
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
 .ellipse-tabs,
 .page-tabs,
 .segmented,

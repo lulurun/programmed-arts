@@ -15,6 +15,7 @@ Each ellipse exposes:
 - percent visible from the left
 
 All ellipses are symmetric around the center line. E1 and E4 always share width and height. E2 and E3 always share the same leftmost x position.
+E1/E2 and E3/E4 are constrained as closed arc pairs: each pair has shared start and end points. The dependent arc controls are shown as fitted values when they are derived from the pair constraint.
 
 The pattern canvas highlights calculated ellipse intersections and supports dragging ellipse handles horizontally or dragging the eye horizontally. The artwork page updates immediately from the current pattern.
 

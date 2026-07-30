@@ -153,18 +153,49 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+function roundTo(value, places = 2) {
+  const scale = 10 ** places;
+  return Math.round(value * scale) / scale;
+}
+
 function ellipseGeometry(ellipse) {
+  const width = Number.isFinite(ellipse.width) ? ellipse.width : ellipse.a * 2;
+  const height = Number.isFinite(ellipse.height) ? ellipse.height : ellipse.b * 2;
+  const leftX = Number.isFinite(ellipse.leftX) ? ellipse.leftX : ellipse.cx - width / 2;
   return {
     label: ellipse.label,
-    leftX: ellipse.leftX,
-    width: ellipse.width,
-    height: ellipse.height,
-    visible: ellipse.visible,
-    cx: ellipse.leftX + ellipse.width / 2,
+    leftX,
+    width,
+    height,
+    visible: Number.isFinite(ellipse.visible) ? ellipse.visible : 60,
+    cx: leftX + width / 2,
     cy: 0,
-    a: ellipse.width / 2,
-    b: ellipse.height / 2
+    a: width / 2,
+    b: height / 2
   };
+}
+
+function arcEndpoint(ellipse) {
+  const normalized = ellipseGeometry(ellipse);
+  const halfAngle = Math.PI * normalized.visible / 200;
+  return {
+    x: normalized.leftX + normalized.a * (1 - Math.cos(halfAngle)),
+    y: normalized.b * Math.sin(halfAngle)
+  };
+}
+
+function fitArcToEndpoint(ellipse, endpoint) {
+  const normalized = ellipseGeometry(ellipse);
+  const targetY = Math.abs(endpoint.y);
+  ellipse.width = normalized.width;
+  ellipse.height = Math.max(normalized.height, targetY * 2 + 2);
+
+  const fitted = ellipseGeometry(ellipse);
+  const ratio = clamp(targetY / fitted.b, 0, 0.9999);
+  const halfAngle = Math.asin(ratio);
+  const visible = 200 * halfAngle / Math.PI;
+  ellipse.visible = clamp(roundTo(visible, 4), 1, 100);
+  ellipse.leftX = roundTo(endpoint.x - fitted.a * (1 - Math.cos(halfAngle)), 4);
 }
 
 function normalizeEllipseConstraints(sourceIndex = -1) {
@@ -172,6 +203,14 @@ function normalizeEllipseConstraints(sourceIndex = -1) {
   const e2 = state.ellipses[1];
   const e3 = state.ellipses[2];
   const e4 = state.ellipses[3];
+
+  state.ellipses.forEach((ellipse) => {
+    const normalized = ellipseGeometry(ellipse);
+    ellipse.leftX = roundTo(normalized.leftX);
+    ellipse.width = roundTo(clamp(normalized.width, 48, 620));
+    ellipse.height = roundTo(clamp(normalized.height, 36, 360));
+    ellipse.visible = roundTo(clamp(normalized.visible, 1, 100));
+  });
 
   if (sourceIndex === 3) {
     e1.width = e4.width;
@@ -181,18 +220,19 @@ function normalizeEllipseConstraints(sourceIndex = -1) {
     e4.height = e1.height;
   }
 
-  if (sourceIndex === 2) {
-    e2.leftX = e3.leftX;
-  } else {
+  fitArcToEndpoint(e2, arcEndpoint(e1));
+  e3.leftX = e2.leftX;
+
+  const e3Endpoint = arcEndpoint(e3);
+  if (e3Endpoint.y > e4.height / 2) {
+    e1.height = Math.min(360, roundTo(e3Endpoint.y * 2 + 2));
+    e4.height = e1.height;
+    fitArcToEndpoint(e2, arcEndpoint(e1));
     e3.leftX = e2.leftX;
   }
-
-  state.ellipses.forEach((ellipse) => {
-    ellipse.leftX = Math.round(ellipse.leftX);
-    ellipse.width = Math.round(ellipse.width);
-    ellipse.height = Math.round(ellipse.height);
-    ellipse.visible = Math.round(clamp(ellipse.visible, 1, 100));
-  });
+  fitArcToEndpoint(e4, arcEndpoint(e3));
+  e1.width = e4.width;
+  e1.height = e4.height;
 }
 
 function ellipsePoint(ellipse, angle) {
@@ -625,10 +665,12 @@ function createRange(parent, config, getter, setter) {
   range.min = config.min;
   range.max = config.max;
   range.step = config.step || 1;
+  range.disabled = Boolean(config.disabled);
   number.type = "number";
   number.min = config.min;
   number.max = config.max;
   number.step = config.step || 1;
+  number.disabled = Boolean(config.disabled);
 
   function sync(value) {
     output.value = String(value);
@@ -761,20 +803,23 @@ function rebuildEllipseControls() {
   }
 
   const ellipse = state.ellipses[state.activePart];
+  const fittedPair = state.activePart === 1 || state.activePart === 3;
+  const fittedSharedX = state.activePart === 1 || state.activePart === 2;
   const fields = [
-    ["leftX", state.activePart === 1 || state.activePart === 2 ? "Shared left x" : "Left x", -330, 180],
+    ["leftX", fittedSharedX ? "Fitted shared left x" : "Left x", -330, 180, fittedSharedX],
     ["width", state.activePart === 0 || state.activePart === 3 ? "Shared width" : "Width", 48, 620],
     ["height", state.activePart === 0 || state.activePart === 3 ? "Shared height" : "Height", 36, 360],
-    ["visible", "Visible from left", 1, 100]
+    ["visible", fittedPair ? "Fitted visible" : "Visible from left", 1, 100, fittedPair]
   ];
-  fields.forEach(([key, label, min, max]) => {
+  fields.forEach(([key, label, min, max, disabled]) => {
     createRange(
       form,
-      { label, min, max },
+      { label, min, max, disabled },
       () => ellipse[key],
       (value) => {
         ellipse[key] = value;
         normalizeEllipseConstraints(state.activePart);
+        rebuildEllipseControls();
       }
     );
   });
@@ -824,6 +869,7 @@ function resetPattern() {
   state.module = JSON.parse(JSON.stringify(defaults.module));
   state.ellipses = JSON.parse(JSON.stringify(defaults.ellipses));
   state.activePart = "eye";
+  normalizeEllipseConstraints();
   state.showGuides = defaults.showGuides ?? true;
   state.showFullEllipses = defaults.showFullEllipses ?? true;
   controls.showGuides.checked = state.showGuides;
@@ -997,5 +1043,6 @@ function download(filename, href) {
 }
 
 applyStoredState();
+normalizeEllipseConstraints();
 buildControls();
 setPage("pattern");
