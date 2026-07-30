@@ -321,7 +321,7 @@ function drawEllipseWire(ctx, transform, ellipse, index) {
 
   drawPolyline(ctx, transform, sampleArc(ellipse, 72), false);
   ctx.strokeStyle = `hsla(${index * 64 + 16}, 70%, 31%, 0.95)`;
-  ctx.lineWidth = index === state.activePart ? 4 : 2.5;
+  ctx.lineWidth = 2.5;
   ctx.setLineDash([]);
   ctx.stroke();
 
@@ -348,6 +348,18 @@ function drawPoint(ctx, transform, point, radius, color) {
   ctx.arc(screen.x, screen.y, radius, 0, TWO_PI);
   ctx.fillStyle = color;
   ctx.fill();
+}
+
+function drawHandleRing(ctx, transform, point, radius, color) {
+  const screen = transform.toScreen(point);
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(screen.x, screen.y, radius, 0, TWO_PI);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([]);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawGeometry() {
@@ -393,15 +405,22 @@ function drawGeometry() {
 
   state.ellipses.forEach((ellipse, index) => {
     const normalized = ellipseGeometry(ellipse);
-    drawPoint(geometryCtx, transform, normalized, index === state.activePart ? 7 : 5, "#c94f2f");
+    drawPoint(geometryCtx, transform, normalized, 5, "#c94f2f");
+    if (index === state.activePart) {
+      drawHandleRing(geometryCtx, transform, normalized, 9, "#17201d");
+    }
   });
+  const eyePoint = { x: state.module.eyeX, y: 0 };
   drawPoint(
     geometryCtx,
     transform,
-    { x: state.module.eyeX, y: 0 },
-    state.activePart === "eye" ? state.module.eyeRadius + 3 : state.module.eyeRadius,
+    eyePoint,
+    state.module.eyeRadius,
     "#17201d"
   );
+  if (state.activePart === "eye") {
+    drawHandleRing(geometryCtx, transform, eyePoint, state.module.eyeRadius + 5, "#c94f2f");
+  }
 
   controls.geometryMetric.textContent = `${lastIntersections.length} intersections`;
 }
