@@ -418,9 +418,6 @@ function drawGeometry() {
     state.module.eyeRadius,
     "#17201d"
   );
-  if (state.activePart === "eye") {
-    drawHandleRing(geometryCtx, transform, eyePoint, state.module.eyeRadius + 5, "#c94f2f");
-  }
 
   controls.geometryMetric.textContent = `${lastIntersections.length} intersections`;
 }
