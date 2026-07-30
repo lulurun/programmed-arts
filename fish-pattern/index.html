@@ -9,22 +9,22 @@
   <body>
     <main class="app">
       <section class="workspace" aria-label="Fish tessellation workspace">
-        <article class="view view-editor">
+        <article class="view view-editor page" id="patternPage">
           <div class="view-bar">
             <div>
-              <p>Geometry Editor</p>
-              <h1>Parametric Fish</h1>
+              <p>Page 1 / Repeatable Pattern</p>
+              <h1>Single Fish Module</h1>
             </div>
             <div class="metric" id="geometryMetric">0 intersections</div>
           </div>
           <canvas id="geometryCanvas" width="860" height="620" aria-label="Four ellipse geometry editor"></canvas>
         </article>
 
-        <article class="view view-art">
+        <article class="view view-art page" id="artPage" hidden>
           <div class="view-bar">
             <div>
-              <p>Artwork Renderer</p>
-              <h1>Tessellated Pattern</h1>
+              <p>Page 2 / Final Artwork</p>
+              <h1>Layout Renderer</h1>
             </div>
             <div class="metric" id="artMetric">0 modules</div>
           </div>
@@ -38,40 +38,59 @@
           <h2>Fish Tessellation Lab</h2>
         </div>
 
-        <section class="control-section">
-          <h3>Module</h3>
-          <div class="control-grid" id="moduleControls"></div>
-        </section>
+        <div class="page-tabs" role="tablist" aria-label="Tool pages">
+          <button id="patternPageButton" class="is-active" type="button">Pattern</button>
+          <button id="artPageButton" type="button">Artwork</button>
+        </div>
+
+        <div id="patternPanel">
+          <section class="control-section">
+            <h3>Pattern Module</h3>
+            <div class="control-grid" id="patternModuleControls"></div>
+          </section>
+
+          <section class="control-section">
+            <h3>Ellipses</h3>
+            <div class="ellipse-tabs" id="ellipseTabs" role="tablist" aria-label="Ellipse selector"></div>
+            <div id="ellipseControls"></div>
+          </section>
+
+          <section class="control-section">
+            <h3>Geometry View</h3>
+            <div class="toggles">
+              <label class="check">
+                <input id="showGuides" type="checkbox" checked>
+                <span>Guides</span>
+              </label>
+              <label class="check">
+                <input id="showFullEllipses" type="checkbox" checked>
+                <span>Full ellipses</span>
+              </label>
+            </div>
+          </section>
+        </div>
+
+        <div id="artPanel" hidden>
+          <section class="control-section">
+            <h3>Layout</h3>
+            <div class="control-grid" id="layoutControls"></div>
+          </section>
+
+          <section class="control-section">
+            <h3>Color</h3>
+            <div class="segmented" id="paletteControls" aria-label="Palette presets"></div>
+            <div class="segmented" id="styleControls" aria-label="Coloring styles"></div>
+          </section>
+        </div>
 
         <section class="control-section">
-          <h3>Ellipses</h3>
-          <div class="ellipse-tabs" id="ellipseTabs" role="tablist" aria-label="Ellipse selector"></div>
-          <div id="ellipseControls"></div>
-        </section>
-
-        <section class="control-section">
-          <h3>Artwork</h3>
-          <div class="segmented" id="paletteControls" aria-label="Palette presets"></div>
-          <div class="segmented" id="styleControls" aria-label="Coloring styles"></div>
-          <div class="toggles">
-            <label class="check">
-              <input id="showGuides" type="checkbox" checked>
-              <span>Guides</span>
-            </label>
-            <label class="check">
-              <input id="showFullEllipses" type="checkbox" checked>
-              <span>Full ellipses</span>
-            </label>
-          </div>
-        </section>
-
-        <section class="control-section">
-          <h3>Calculated Geometry</h3>
+          <h3 id="readoutTitle">Calculated Geometry</h3>
           <div class="readout" id="readout"></div>
         </section>
 
         <div class="actions">
-          <button id="resetButton" class="secondary" type="button">Reset</button>
+          <button id="resetPatternButton" class="secondary" type="button">Reset Pattern</button>
+          <button id="resetLayoutButton" class="secondary" type="button" hidden>Reset Layout</button>
           <button id="exportSvgButton" type="button">Export SVG</button>
           <button id="exportPngButton" type="button">Export PNG</button>
         </div>

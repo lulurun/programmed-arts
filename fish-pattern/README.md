@@ -2,10 +2,10 @@
 
 A browser-based editor for generating an elliptical fish tessellation from four parametric ellipses.
 
-The app has two synchronized canvases:
+The app has two synchronized pages:
 
-- `Geometry Editor`: edits the four rotated ellipses, mirrored arcs, eye point, and vertical pitch.
-- `Artwork Renderer`: repeats the fish module in alternating mirrored rows and columns, then applies palette and fill styles.
+- `Pattern`: creates the single repeatable fish module from four rotated ellipses, mirrored arcs, eye point, and stroke settings.
+- `Artwork`: uses the current module to create the final tessellated art with layout, spacing, scale, color palette, and fill style parameters.
 
 Each ellipse exposes:
 
@@ -15,7 +15,17 @@ Each ellipse exposes:
 - rotation `theta`
 - arc start and end angles
 
-The geometry canvas highlights calculated ellipse intersections and supports dragging ellipse centers or the eye point. The artwork canvas updates immediately as parameters change.
+The pattern canvas highlights calculated ellipse intersections and supports dragging ellipse centers or the eye point. The artwork page updates immediately from the current pattern.
+
+Artwork layout controls include:
+
+- row and column counts
+- vertical pitch `Sy`
+- horizontal spacing
+- pattern scale
+- x/y offsets
+- color cell and background grid size
+- palette preset and coloring style
 
 ## Run
 

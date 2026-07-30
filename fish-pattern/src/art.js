@@ -18,17 +18,27 @@ const styleLabels = {
 };
 
 const state = {
+  page: "pattern",
   activeEllipse: 0,
   palette: "primaries",
   style: "chequer",
   showGuides: true,
   showFullEllipses: true,
   module: {
-    pitchY: 178,
     eyeX: -146,
     eyeY: 0,
     eyeRadius: 8,
-    strokeWidth: 3.4,
+    strokeWidth: 3.4
+  },
+  layout: {
+    pitchY: 178,
+    columns: 5,
+    rows: 7,
+    columnSpacing: 0.78,
+    offsetX: 0,
+    offsetY: 0,
+    cellSize: 30,
+    backgroundCell: 42,
     scale: 1
   },
   ellipses: [
@@ -40,9 +50,16 @@ const state = {
 };
 
 const controls = {
+  patternPage: document.querySelector("#patternPage"),
+  artPage: document.querySelector("#artPage"),
+  patternPanel: document.querySelector("#patternPanel"),
+  artPanel: document.querySelector("#artPanel"),
+  patternPageButton: document.querySelector("#patternPageButton"),
+  artPageButton: document.querySelector("#artPageButton"),
   geometryCanvas: document.querySelector("#geometryCanvas"),
   artCanvas: document.querySelector("#artCanvas"),
-  moduleControls: document.querySelector("#moduleControls"),
+  patternModuleControls: document.querySelector("#patternModuleControls"),
+  layoutControls: document.querySelector("#layoutControls"),
   ellipseTabs: document.querySelector("#ellipseTabs"),
   ellipseControls: document.querySelector("#ellipseControls"),
   paletteControls: document.querySelector("#paletteControls"),
@@ -50,9 +67,11 @@ const controls = {
   showGuides: document.querySelector("#showGuides"),
   showFullEllipses: document.querySelector("#showFullEllipses"),
   readout: document.querySelector("#readout"),
+  readoutTitle: document.querySelector("#readoutTitle"),
   geometryMetric: document.querySelector("#geometryMetric"),
   artMetric: document.querySelector("#artMetric"),
-  resetButton: document.querySelector("#resetButton"),
+  resetPatternButton: document.querySelector("#resetPatternButton"),
+  resetLayoutButton: document.querySelector("#resetLayoutButton"),
   exportSvgButton: document.querySelector("#exportSvgButton"),
   exportPngButton: document.querySelector("#exportPngButton")
 };
@@ -65,6 +84,7 @@ let lastIntersections = [];
 function cloneDefaults() {
   return JSON.parse(JSON.stringify({
     module: state.module,
+    layout: state.layout,
     ellipses: state.ellipses
   }));
 }
@@ -285,8 +305,8 @@ function fishOutlinePoints() {
 function drawFishUnit(ctx, transform, offset, variant) {
   const palette = palettes[state.palette];
   const outline = fishOutlinePoints().map((point) => ({
-    x: point.x * state.module.scale + offset.x,
-    y: point.y * state.module.scale + offset.y
+    x: point.x * state.layout.scale + offset.x,
+    y: point.y * state.layout.scale + offset.y
   }));
 
   ctx.save();
@@ -310,7 +330,7 @@ function drawFishUnit(ctx, transform, offset, variant) {
   });
   const eye = transform.toScreen(scaleOffset({ x: state.module.eyeX, y: state.module.eyeY }, offset));
   ctx.beginPath();
-  ctx.arc(eye.x, eye.y, state.module.eyeRadius * transform.scale * state.module.scale, 0, TWO_PI);
+  ctx.arc(eye.x, eye.y, state.module.eyeRadius * transform.scale * state.layout.scale, 0, TWO_PI);
   ctx.fillStyle = palette[4] || "#191919";
   ctx.fill();
   ctx.restore();
@@ -318,18 +338,18 @@ function drawFishUnit(ctx, transform, offset, variant) {
 
 function scaleOffset(point, offset) {
   return {
-    x: point.x * state.module.scale + offset.x,
-    y: point.y * state.module.scale + offset.y
+    x: point.x * state.layout.scale + offset.x,
+    y: point.y * state.layout.scale + offset.y
   };
 }
 
 function paintCells(ctx, transform, offset, variant, palette) {
-  const cell = 30 * state.module.scale;
-  const width = MODULE_WIDTH * state.module.scale;
-  const height = state.module.pitchY * 0.94 * state.module.scale;
+  const cell = state.layout.cellSize * state.layout.scale;
+  const width = MODULE_WIDTH * state.layout.scale;
+  const height = state.layout.pitchY * 0.94 * state.layout.scale;
   for (let y = -height / 2; y <= height / 2; y += cell) {
     for (let x = -width / 2; x <= width / 2; x += cell) {
-      const overlap = ellipseOverlapAt({ x: x / state.module.scale, y: y / state.module.scale });
+      const overlap = ellipseOverlapAt({ x: x / state.layout.scale, y: y / state.layout.scale });
       const colorIndex = colorIndexForCell(x, y, variant, overlap, palette.length);
       const a = transform.toScreen({ x: offset.x + x, y: offset.y + y });
       const b = transform.toScreen({ x: offset.x + x + cell + 1, y: offset.y + y + cell + 1 });
@@ -366,25 +386,29 @@ function ellipseOverlapAt(point) {
 
 function colorIndexForCell(x, y, variant, overlap, paletteLength) {
   if (state.style === "overlap") return clamp(overlap, 0, paletteLength - 1);
-  if (state.style === "stripes") return Math.abs(Math.floor((y + variant * 17) / 30)) % paletteLength;
+  if (state.style === "stripes") return Math.abs(Math.floor((y + variant * 17) / state.layout.cellSize)) % paletteLength;
   if (state.style === "gradient") return Math.abs(Math.floor((x + y) / 62 + variant)) % paletteLength;
-  return Math.abs(Math.floor(x / 30) + Math.floor(y / 30) + variant) % paletteLength;
+  return Math.abs(Math.floor(x / state.layout.cellSize) + Math.floor(y / state.layout.cellSize) + variant) % paletteLength;
 }
 
 function drawArtwork(ctx = artCtx) {
   clear(ctx, "#ede8dc");
   const transform = transformForCanvas(ctx.canvas, ART_BOX);
-  const pitch = state.module.pitchY * state.module.scale;
-  const columnPitch = MODULE_WIDTH * 0.78 * state.module.scale;
+  const pitch = state.layout.pitchY * state.layout.scale;
+  const columnPitch = MODULE_WIDTH * state.layout.columnSpacing * state.layout.scale;
+  const rowStart = -Math.floor((state.layout.rows - 1) / 2);
+  const rowEnd = rowStart + state.layout.rows;
+  const colStart = -Math.floor((state.layout.columns - 1) / 2);
+  const colEnd = colStart + state.layout.columns;
   let modules = 0;
 
   drawBackgroundPattern(ctx);
-  for (let row = -3; row <= 3; row += 1) {
-    for (let col = -2; col <= 2; col += 1) {
+  for (let row = rowStart; row < rowEnd; row += 1) {
+    for (let col = colStart; col < colEnd; col += 1) {
       const flip = (row + col) % 2 !== 0;
       const offset = {
-        x: col * columnPitch,
-        y: row * pitch
+        x: state.layout.offsetX + col * columnPitch,
+        y: state.layout.offsetY + row * pitch
       };
       ctx.save();
       if (flip) {
@@ -399,12 +423,12 @@ function drawArtwork(ctx = artCtx) {
     }
   }
 
-  if (ctx === artCtx) controls.artMetric.textContent = `${modules} modules / Sy ${state.module.pitchY}`;
+  if (ctx === artCtx) controls.artMetric.textContent = `${modules} modules / Sy ${state.layout.pitchY}`;
 }
 
 function drawBackgroundPattern(ctx) {
   const palette = palettes[state.palette];
-  const size = state.style === "stripes" ? 34 : 42;
+  const size = state.layout.backgroundCell;
   for (let y = 0; y < ctx.canvas.height; y += size) {
     for (let x = 0; x < ctx.canvas.width; x += size) {
       const index = Math.floor(x / size) + Math.floor(y / size);
@@ -416,24 +440,40 @@ function drawBackgroundPattern(ctx) {
   ctx.globalAlpha = 1;
 }
 
-function renderReadout() {
+function renderPatternReadout() {
   const active = state.ellipses[state.activeEllipse];
   const pointSummary = lastIntersections.slice(0, 6).map((point) => {
     return `${point.pair} (${point.x.toFixed(1)}, ${point.y.toFixed(1)})`;
   });
+  controls.readoutTitle.textContent = "Calculated Geometry";
   controls.readout.innerHTML = [
     `<strong>${active.label}</strong>`,
     `center (${active.cx}, ${active.cy}), axes ${active.a} / ${active.b}, theta ${active.theta} deg`,
     `arc ${active.start} deg to ${active.end} deg; mirrored across y=0`,
-    `eye (${state.module.eyeX}, ${state.module.eyeY}), Sy ${state.module.pitchY}`,
+    `eye (${state.module.eyeX}, ${state.module.eyeY}), stroke ${state.module.strokeWidth}`,
     pointSummary.length ? pointSummary.join("<br>") : "No ellipse intersections in the current configuration."
+  ].join("<br>");
+}
+
+function renderArtReadout() {
+  controls.readoutTitle.textContent = "Artwork Settings";
+  controls.readout.innerHTML = [
+    "<strong>Final art layout</strong>",
+    `${state.layout.columns} columns x ${state.layout.rows} rows = ${state.layout.columns * state.layout.rows} modules`,
+    `pitch ${state.layout.pitchY}, spacing ${state.layout.columnSpacing}, scale ${state.layout.scale}`,
+    `offset (${state.layout.offsetX}, ${state.layout.offsetY}), cell ${state.layout.cellSize}`,
+    `palette ${state.palette}, style ${styleLabels[state.style]}`
   ].join("<br>");
 }
 
 function render() {
   drawGeometry();
   drawArtwork();
-  renderReadout();
+  if (state.page === "pattern") {
+    renderPatternReadout();
+  } else {
+    renderArtReadout();
+  }
 }
 
 function createRange(parent, config, getter, setter) {
@@ -478,21 +518,41 @@ function createRange(parent, config, getter, setter) {
 }
 
 function buildControls() {
-  const moduleFields = [
-    ["pitchY", "Vertical pitch Sy", 80, 310],
+  const patternModuleFields = [
     ["eyeX", "Eye x", -230, 40],
     ["eyeY", "Eye y", -80, 80],
     ["eyeRadius", "Eye radius", 3, 24],
-    ["strokeWidth", "Stroke", 1, 9, 0.2],
-    ["scale", "Module scale", 0.55, 1.45, 0.01]
+    ["strokeWidth", "Stroke", 1, 9, 0.2]
   ];
-  moduleFields.forEach(([key, label, min, max, step]) => {
+  patternModuleFields.forEach(([key, label, min, max, step]) => {
     createRange(
-      controls.moduleControls,
+      controls.patternModuleControls,
       { label, min, max, step },
       () => state.module[key],
       (value) => {
         state.module[key] = value;
+      }
+    );
+  });
+
+  const layoutFields = [
+    ["columns", "Columns", 1, 11],
+    ["rows", "Rows", 1, 13],
+    ["pitchY", "Vertical pitch Sy", 80, 330],
+    ["columnSpacing", "Column spacing", 0.45, 1.25, 0.01],
+    ["scale", "Pattern scale", 0.55, 1.45, 0.01],
+    ["offsetX", "Offset x", -220, 220],
+    ["offsetY", "Offset y", -180, 180],
+    ["cellSize", "Color cell", 12, 58],
+    ["backgroundCell", "Background grid", 18, 86]
+  ];
+  layoutFields.forEach(([key, label, min, max, step]) => {
+    createRange(
+      controls.layoutControls,
+      { label, min, max, step },
+      () => state.layout[key],
+      (value) => {
+        state.layout[key] = ["columns", "rows", "cellSize", "backgroundCell"].includes(key) ? Math.round(value) : value;
       }
     );
   });
@@ -533,17 +593,20 @@ function buildControls() {
     controls.styleControls.append(button);
   });
 
-  controls.showGuides.addEventListener("change", () => {
+  controls.showGuides.onchange = () => {
     state.showGuides = controls.showGuides.checked;
     render();
-  });
-  controls.showFullEllipses.addEventListener("change", () => {
+  };
+  controls.showFullEllipses.onchange = () => {
     state.showFullEllipses = controls.showFullEllipses.checked;
     render();
-  });
-  controls.resetButton.addEventListener("click", reset);
-  controls.exportSvgButton.addEventListener("click", exportSvg);
-  controls.exportPngButton.addEventListener("click", exportPng);
+  };
+  controls.patternPageButton.onclick = () => setPage("pattern");
+  controls.artPageButton.onclick = () => setPage("art");
+  controls.resetPatternButton.onclick = resetPattern;
+  controls.resetLayoutButton.onclick = resetLayout;
+  controls.exportSvgButton.onclick = exportSvg;
+  controls.exportPngButton.onclick = exportPng;
   rebuildEllipseControls();
   syncButtonStates();
 }
@@ -576,6 +639,8 @@ function rebuildEllipseControls() {
 }
 
 function syncButtonStates() {
+  controls.patternPageButton.classList.toggle("is-active", state.page === "pattern");
+  controls.artPageButton.classList.toggle("is-active", state.page === "art");
   [...controls.ellipseTabs.children].forEach((button, index) => {
     button.classList.toggle("is-active", index === state.activeEllipse);
   });
@@ -588,14 +653,43 @@ function syncButtonStates() {
   });
 }
 
-function reset() {
-  state.module = JSON.parse(JSON.stringify(defaults.module));
-  state.ellipses = JSON.parse(JSON.stringify(defaults.ellipses));
-  state.activeEllipse = 0;
-  controls.moduleControls.innerHTML = "";
+function setPage(page) {
+  state.page = page;
+  const isPattern = page === "pattern";
+  controls.patternPage.hidden = !isPattern;
+  controls.artPage.hidden = isPattern;
+  controls.patternPanel.hidden = !isPattern;
+  controls.artPanel.hidden = isPattern;
+  controls.resetPatternButton.hidden = !isPattern;
+  controls.resetLayoutButton.hidden = isPattern;
+  controls.exportSvgButton.hidden = isPattern;
+  controls.exportPngButton.hidden = isPattern;
+  syncButtonStates();
+  render();
+}
+
+function clearGeneratedControls() {
+  controls.patternModuleControls.innerHTML = "";
+  controls.layoutControls.innerHTML = "";
   controls.ellipseTabs.innerHTML = "";
   controls.paletteControls.innerHTML = "";
   controls.styleControls.innerHTML = "";
+}
+
+function resetPattern() {
+  state.module = JSON.parse(JSON.stringify(defaults.module));
+  state.ellipses = JSON.parse(JSON.stringify(defaults.ellipses));
+  state.activeEllipse = 0;
+  clearGeneratedControls();
+  buildControls();
+  render();
+}
+
+function resetLayout() {
+  state.layout = JSON.parse(JSON.stringify(defaults.layout));
+  state.palette = "primaries";
+  state.style = "chequer";
+  clearGeneratedControls();
   buildControls();
   render();
 }
@@ -644,10 +738,7 @@ controls.geometryCanvas.addEventListener("pointermove", (event) => {
     ellipse.cx = Math.round(clamp(world.x, -260, 260));
     ellipse.cy = Math.round(clamp(world.y, -160, 160));
   }
-  controls.moduleControls.innerHTML = "";
-  controls.ellipseTabs.innerHTML = "";
-  controls.paletteControls.innerHTML = "";
-  controls.styleControls.innerHTML = "";
+  clearGeneratedControls();
   buildControls();
   render();
 });
@@ -671,7 +762,8 @@ function svgPolyline(points) {
 
 function createUnitSvg(offset, flip, variant) {
   const palette = palettes[state.palette];
-  const transform = flip ? `translate(${offset.x} ${offset.y}) scale(-1 1)` : `translate(${offset.x} ${offset.y})`;
+  const sx = flip ? -state.layout.scale : state.layout.scale;
+  const transform = `translate(${offset.x} ${offset.y}) scale(${sx} ${state.layout.scale})`;
   const fill = palette[Math.abs(variant) % palette.length];
   const paths = state.ellipses.flatMap((ellipse) => {
     return [
@@ -689,15 +781,19 @@ function createUnitSvg(offset, flip, variant) {
 }
 
 function exportSvg() {
-  const pitch = state.module.pitchY * state.module.scale;
-  const columnPitch = MODULE_WIDTH * 0.78 * state.module.scale;
+  const pitch = state.layout.pitchY * state.layout.scale;
+  const columnPitch = MODULE_WIDTH * state.layout.columnSpacing * state.layout.scale;
+  const rowStart = -Math.floor((state.layout.rows - 1) / 2);
+  const rowEnd = rowStart + state.layout.rows;
+  const colStart = -Math.floor((state.layout.columns - 1) / 2);
+  const colEnd = colStart + state.layout.columns;
   const units = [];
-  for (let row = -3; row <= 3; row += 1) {
-    for (let col = -2; col <= 2; col += 1) {
+  for (let row = rowStart; row < rowEnd; row += 1) {
+    for (let col = colStart; col < colEnd; col += 1) {
       const flip = (row + col) % 2 !== 0;
       units.push(createUnitSvg({
-        x: ART_BOX.width / 2 + col * columnPitch,
-        y: ART_BOX.height / 2 + row * pitch
+        x: ART_BOX.width / 2 + state.layout.offsetX + col * columnPitch,
+        y: ART_BOX.height / 2 + state.layout.offsetY + row * pitch
       }, flip, row * 7 + col));
     }
   }
@@ -721,4 +817,4 @@ function download(filename, href) {
 }
 
 buildControls();
-render();
+setPage("pattern");

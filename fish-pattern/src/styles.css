@@ -38,7 +38,6 @@ input {
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(320px, 0.92fr) minmax(380px, 1.08fr);
   gap: 18px;
   padding: 22px;
   min-width: 0;
@@ -100,6 +99,10 @@ canvas {
   background: #f7f3ea;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 .panel {
   max-height: 100vh;
   overflow-y: auto;
@@ -124,6 +127,7 @@ canvas {
 .control-section {
   display: grid;
   gap: 12px;
+  margin-bottom: 18px;
 }
 
 .control-section h3 {
@@ -174,11 +178,16 @@ input[type="number"] {
 }
 
 .ellipse-tabs,
+.page-tabs,
 .segmented,
 .toggles,
 .actions {
   display: grid;
   gap: 8px;
+}
+
+.page-tabs {
+  grid-template-columns: 1fr 1fr;
 }
 
 .ellipse-tabs {
@@ -206,6 +215,7 @@ button {
 }
 
 button.secondary,
+.page-tabs button,
 .ellipse-tabs button,
 .segmented button {
   background: var(--field);
@@ -267,17 +277,17 @@ button:hover {
   backdrop-filter: blur(12px);
 }
 
-.actions button:last-child {
-  grid-column: span 2;
+.actions button:not(.secondary) {
   background: var(--teal);
+}
+
+.actions button[hidden] + button,
+.actions button:first-child:last-child {
+  grid-column: span 2;
 }
 
 @media (max-width: 1180px) {
   .app {
-    grid-template-columns: 1fr;
-  }
-
-  .workspace {
     grid-template-columns: 1fr;
   }
 
