@@ -4,7 +4,7 @@ Parametric browser-based tools for creating printable programmed art.
 
 ## Projects
 
-- [fish-pattern](fish-pattern/) - an ellipse-based fish motif editor and A0 layout tool.
+- [fish-pattern](fish-pattern/) - an interactive four-ellipse fish tessellation editor.
 
 ## Run
 
@@ -20,7 +20,7 @@ Then open:
 http://localhost:4174/fish-pattern/
 ```
 
-Saved pattern and layout JSON files are written through `/api/files/<art-name>/...` under `saved-art/<art-name>/`.
+The previous single-fish pattern/layout implementation is preserved on the `v1` branch.
 
 ## Checks
 

@@ -1,29 +1,21 @@
-# Fish Pattern
+# Fish Tessellation Lab
 
-A browser-based tool for digitizing one hand-drawn fish motif before turning it into a repeatable A0 poster layout.
+A browser-based editor for generating an elliptical fish tessellation from four parametric ellipses.
 
-The fish is built from the hand-drawn pattern:
+The app has two synchronized canvases:
 
-- 4 ellipse arcs
-- 1 filled circle for the eye
-- all four ellipse centers and the eye center stay on the same horizontal center line
+- `Geometry Editor`: edits the four rotated ellipses, mirrored arcs, eye point, and vertical pitch.
+- `Artwork Renderer`: repeats the fish module in alternating mirrored rows and columns, then applies palette and fill styles.
 
-The renderer exposes sliders for each ellipse instance:
+Each ellipse exposes:
 
-- X position
-- width
-- height
-- how much of the ellipse is visible from the left side
+- center `cx`, `cy`
+- semi-major axis `a`
+- semi-minor axis `b`
+- rotation `theta`
+- arc start and end angles
 
-The Y position is fixed for every component so the motif stays aligned. Ellipse 4 reuses ellipse 1's width and height, so they always have the same ellipse shape while using different X positions and visible-left amounts.
-Ellipse 3 always shows 100 percent from the left side.
-
-The app has two views:
-
-- `Pattern`: edit one basic fish pattern, then save or load parameter sets.
-- `Layout`: save/load full layouts, see saved parameter sets, add fish instances from them, adjust each fish's X position, add an X-flipped instance when needed, and export an A0 landscape SVG.
-
-Saved patterns and saved layouts are stored in the browser's local storage.
+The geometry canvas highlights calculated ellipse intersections and supports dragging ellipse centers or the eye point. The artwork canvas updates immediately as parameters change.
 
 ## Run
 
@@ -40,23 +32,16 @@ http://localhost:4174/fish-pattern/
 ```
 
 You can also open `fish-pattern/index.html` directly in a browser.
-When served through `npm start`, saved patterns and layouts are persisted as JSON files under `saved-art/fish-pattern/`.
-To migrate old browser-local saves, open DevTools on `http://localhost:4174/fish-pattern/` and run `exportLocalStorageToServer()`.
 
-## Export Workflow
+## Export
 
-1. Adjust each ellipse's X position, width, height, and visible-left amount until the body, tail, and eye match the hand-drawn motif.
-   You can use either the slider or the numeric input beside it.
-2. Keep `Guides` enabled to verify the four ellipse centers and eye center share the same horizontal axis.
-3. Turn on `Full ellipses` when you want to inspect the underlying ellipse shapes.
-4. Save the pattern, switch to `Layout`, then add normal or flipped fish instances from the saved list.
-5. Tune layout X positions and layout zoom against the A0 frame.
-6. Use `Export Layout SVG` for an A0 landscape SVG, or `Export Layout PNG` for a raster preview.
+Use the controls at the bottom of the side panel:
 
-## Files
+- `Export SVG` downloads the current tessellated artwork as vector paths.
+- `Export PNG` downloads a high-resolution raster image.
 
-- `index.html` - browser app shell
-- `src/art.js` - pattern and layout drawing logic
-- `src/styles.css` - UI styles
-- `exports/fish-layout.svg` - example generated layout export
-- `references/` - source sketch photo
+## Notes
+
+The current implementation is dependency-free vanilla JavaScript and Canvas. Region coloring is implemented as deterministic sampled cells clipped inside the fish module, with an overlap style derived from ellipse containment counts. A full planar graph / minimal-cycle boolean face detector remains the natural next step if exact mathematical face extraction is required.
+
+The previous single-fish pattern/layout tool is preserved on the `v1` branch.

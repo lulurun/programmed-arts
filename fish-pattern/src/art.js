@@ -1,750 +1,78 @@
-const FISH_BOX = { width: 760, height: 560 };
-const A0_MM = { width: 1189, height: 841 };
-const LAYOUT_BOX = { width: 1400, height: Math.round(1400 * A0_MM.height / A0_MM.width) };
-const LAYOUT_X_MIN = -FISH_BOX.width;
-const LAYOUT_X_MAX = LAYOUT_BOX.width + FISH_BOX.width;
-const AXIS_Y = FISH_BOX.height / 2;
-const LAYOUT_AXIS_Y = LAYOUT_BOX.height / 2;
-const VIEW_PADDING = 56;
-const ART_NAME = "fish-pattern";
-const API_ART_URL = `/api/files/${encodeURIComponent(ART_NAME)}`;
-const PATTERN_STORAGE_KEY = "fish-pattern-library-v1";
-const LAYOUT_STORAGE_KEY = "fish-layout-library-v1";
-const RAINBOW_COLORS = [
-  "#e53935",
-  "#fb8c00",
-  "#fdd835",
-  "#43a047",
-  "#039be5",
-  "#3949ab",
-  "#8e24aa"
-];
-const FISH_OUTLINE_COLOR = "#18221f";
+const GEOMETRY_BOX = { width: 860, height: 620 };
+const ART_BOX = { width: 1120, height: 760 };
+const MODULE_WIDTH = 420;
+const TWO_PI = Math.PI * 2;
 
-const canvas = document.querySelector("#fish");
-const ctx = canvas.getContext("2d");
-
-const defaults = {
-  eyeX: 88,
-  eyeRadius: 13,
-  e1X: 420,
-  e1Width: 700,
-  e1Height: 390,
-  e1Visible: 100,
-  e2X: 420,
-  e2Width: 240,
-  e2Height: 380,
-  e2Visible: 100,
-  e3X: 445,
-  e3Width: 224,
-  e3Height: 164,
-  e3Visible: 100,
-  e4X: 500,
-  e4Width: 700,
-  e4Height: 390,
-  e4Visible: 38,
-  strokeWidth: 7,
-  guides: true,
-  fullEllipses: false
+const palettes = {
+  primaries: ["#f3d342", "#e54835", "#1666b1", "#ffffff", "#191919", "#2ba66f"],
+  watercolor: ["#f5c6a5", "#86b8c9", "#d8a7b1", "#f2e8c9", "#97b681", "#516d83"],
+  pastel: ["#ffd7df", "#bae2d8", "#f7e59d", "#c7c7ee", "#f5b88f", "#f9f5ed"],
+  dark: ["#161b22", "#305f72", "#f0b84b", "#d95f4f", "#75a47f", "#e7e1d1"]
 };
 
-const patternParamNames = Object.keys(defaults);
-const savedParamNames = patternParamNames.filter((name) => !["guides", "fullEllipses"].includes(name));
+const styleLabels = {
+  chequer: "Chequer",
+  stripes: "Stripes",
+  gradient: "Gradient",
+  overlap: "Overlap"
+};
+
+const state = {
+  activeEllipse: 0,
+  palette: "primaries",
+  style: "chequer",
+  showGuides: true,
+  showFullEllipses: true,
+  module: {
+    pitchY: 178,
+    eyeX: -146,
+    eyeY: 0,
+    eyeRadius: 8,
+    strokeWidth: 3.4,
+    scale: 1
+  },
+  ellipses: [
+    { label: "C1 Head / outer", cx: -28, cy: 0, a: 236, b: 112, theta: 0, start: 128, end: 232 },
+    { label: "C2 Gill", cx: -94, cy: 0, a: 72, b: 128, theta: -5, start: 58, end: 302 },
+    { label: "C3 Body", cx: 44, cy: 0, a: 142, b: 68, theta: 9, start: 154, end: 334 },
+    { label: "C4 Tail root", cx: 112, cy: 0, a: 214, b: 116, theta: 0, start: 148, end: 212 }
+  ]
+};
+
 const controls = {
+  geometryCanvas: document.querySelector("#geometryCanvas"),
+  artCanvas: document.querySelector("#artCanvas"),
+  moduleControls: document.querySelector("#moduleControls"),
+  ellipseTabs: document.querySelector("#ellipseTabs"),
+  ellipseControls: document.querySelector("#ellipseControls"),
+  paletteControls: document.querySelector("#paletteControls"),
+  styleControls: document.querySelector("#styleControls"),
+  showGuides: document.querySelector("#showGuides"),
+  showFullEllipses: document.querySelector("#showFullEllipses"),
   readout: document.querySelector("#readout"),
-  patternViewButton: document.querySelector("#patternViewButton"),
-  layoutViewButton: document.querySelector("#layoutViewButton"),
-  patternControls: document.querySelector("#patternControls"),
-  layoutControls: document.querySelector("#layoutControls"),
-  patternActionSheet: document.querySelector("#patternActionSheet"),
-  layoutActionSheet: document.querySelector("#layoutActionSheet"),
-  layoutZoom: document.querySelector("#layoutZoom"),
-  layoutZoomValue: document.querySelector("#layoutZoomValue"),
-  patternName: document.querySelector("#patternName"),
-  patternLoadSelect: document.querySelector("#patternLoadSelect"),
-  loadPattern: document.querySelector("#loadPattern"),
-  savePattern: document.querySelector("#savePattern"),
-  resetPattern: document.querySelector("#resetPattern"),
-  exportPatternSvg: document.querySelector("#exportPatternSvg"),
-  exportPatternPng: document.querySelector("#exportPatternPng"),
-  layoutName: document.querySelector("#layoutName"),
-  layoutLoadSelect: document.querySelector("#layoutLoadSelect"),
-  loadLayout: document.querySelector("#loadLayout"),
-  saveLayout: document.querySelector("#saveLayout"),
-  resetLayout: document.querySelector("#resetLayout"),
-  exportLayoutSvg: document.querySelector("#exportLayoutSvg"),
-  exportLayoutPng: document.querySelector("#exportLayoutPng"),
-  savedPatterns: document.querySelector("#savedPatterns"),
-  layoutItems: document.querySelector("#layoutItems")
+  geometryMetric: document.querySelector("#geometryMetric"),
+  artMetric: document.querySelector("#artMetric"),
+  resetButton: document.querySelector("#resetButton"),
+  exportSvgButton: document.querySelector("#exportSvgButton"),
+  exportPngButton: document.querySelector("#exportPngButton")
 };
-const outputs = {};
 
-patternParamNames.forEach((name) => {
-  controls[name] = document.querySelector(`#${name}`);
-  outputs[name] = document.querySelector(`#${name}Value`);
-});
+const geometryCtx = controls.geometryCanvas.getContext("2d");
+const artCtx = controls.artCanvas.getContext("2d");
+let dragTarget = null;
+let lastIntersections = [];
 
-let currentView = "pattern";
-let savedPatterns = [];
-let savedLayouts = [];
-let layoutItems = [];
-
-function degreesToRadians(degrees) {
-  return (degrees * Math.PI) / 180;
+function cloneDefaults() {
+  return JSON.parse(JSON.stringify({
+    module: state.module,
+    ellipses: state.ellipses
+  }));
 }
 
-function ellipseFromOptions(options, number, label) {
-  const width = number === 4 ? options.e4Width ?? options.e1Width : options[`e${number}Width`];
-  const height = number === 4 ? options.e4Height ?? options.e1Height : options[`e${number}Height`];
-  const visible = options[`e${number}Visible`] ?? 100;
+const defaults = cloneDefaults();
 
-  return {
-    label,
-    x: options[`e${number}X`],
-    y: AXIS_Y,
-    rx: width / 2,
-    ry: height / 2,
-    visible
-  };
-}
-
-function fishEllipses(options) {
-  return [
-    ellipseFromOptions(options, 1, "ellipse 1"),
-    ellipseFromOptions(options, 2, "ellipse 2"),
-    ellipseFromOptions(options, 3, "ellipse 3"),
-    ellipseFromOptions(options, 4, "ellipse 4")
-  ];
-}
-
-function visibleArcAngles(ellipse) {
-  const halfAngle = (180 * ellipse.visible) / 100 / 2;
-  return {
-    start: degreesToRadians(180 - halfAngle),
-    end: degreesToRadians(180 + halfAngle)
-  };
-}
-
-function drawEllipseArc(target, ellipse, fullEllipse) {
-  const angles = visibleArcAngles(ellipse);
-  const start = fullEllipse ? 0 : angles.start;
-  const end = fullEllipse ? Math.PI * 2 : angles.end;
-  target.beginPath();
-  target.ellipse(ellipse.x, ellipse.y, ellipse.rx, ellipse.ry, 0, start, end);
-  target.stroke();
-}
-
-function drawPoint(target, point, radius) {
-  target.beginPath();
-  target.arc(point.x, point.y, radius, 0, Math.PI * 2);
-  target.fill();
-}
-
-function layoutFishColor(index) {
-  return RAINBOW_COLORS[index % RAINBOW_COLORS.length];
-}
-
-function mixHexColors(colorA, colorB) {
-  const hexA = colorA.replace("#", "");
-  const hexB = colorB.replace("#", "");
-  const channels = [0, 2, 4].map((offset) => {
-    const a = parseInt(hexA.slice(offset, offset + 2), 16);
-    const b = parseInt(hexB.slice(offset, offset + 2), 16);
-    return Math.round((a + b) / 2).toString(16).padStart(2, "0");
-  });
-  return `#${channels.join("")}`;
-}
-
-function drawGuides(target, options, ellipses, width = FISH_BOX.width) {
-  target.save();
-  target.strokeStyle = "rgba(223, 91, 53, 0.72)";
-  target.lineWidth = 1.5;
-  target.setLineDash([12, 9]);
-  target.beginPath();
-  target.moveTo(20, AXIS_Y);
-  target.lineTo(width - 20, AXIS_Y);
-  target.stroke();
-
-  target.strokeStyle = "rgba(47, 121, 145, 0.35)";
-  target.setLineDash([5, 8]);
-  ellipses.forEach((ellipse) => {
-    target.beginPath();
-    target.ellipse(ellipse.x, ellipse.y, ellipse.rx, ellipse.ry, 0, 0, Math.PI * 2);
-    target.stroke();
-  });
-  target.restore();
-
-  target.fillStyle = "#df5b35";
-  ellipses.forEach((ellipse) => drawPoint(target, { x: ellipse.x, y: ellipse.y }, 4.5));
-  drawPoint(target, { x: options.eyeX, y: AXIS_Y }, 4.5);
-}
-
-function drawPatternShape(target, options, settings = {}) {
-  const ellipses = fishEllipses(options);
-  const showGuides = Boolean(settings.guides);
-  const fullEllipses = Boolean(settings.fullEllipses);
-  const color = settings.color || FISH_OUTLINE_COLOR;
-
-  if (showGuides) drawGuides(target, options, ellipses);
-
-  target.strokeStyle = color;
-  target.lineWidth = options.strokeWidth;
-  target.lineCap = "round";
-  target.lineJoin = "round";
-  ellipses.forEach((ellipse) => drawEllipseArc(target, ellipse, fullEllipses));
-
-  target.fillStyle = color;
-  drawPoint(target, { x: options.eyeX, y: AXIS_Y }, options.eyeRadius);
-}
-
-function drawPatternAreas(target, options, color) {
-  target.fillStyle = color;
-  beginFishAreaPath(target, options);
-  target.fill();
-}
-
-function beginFishAreaPath(target, options) {
-  const ellipses = fishEllipses(options);
-  target.beginPath();
-  addCurvePairAreaSubpath(target, ellipses[0], ellipses[1]);
-  addCurvePairAreaSubpath(target, ellipses[2], ellipses[3]);
-}
-
-function addCurvePairAreaSubpath(target, first, second) {
-  const firstAngles = visibleArcAngles(first);
-  const secondAngles = visibleArcAngles(second);
-  const firstStart = ellipsePoint(first, firstAngles.start);
-  const firstEnd = ellipsePoint(first, firstAngles.end);
-  const secondEnd = ellipsePoint(second, secondAngles.end);
-
-  target.moveTo(firstStart.x, firstStart.y);
-  target.ellipse(first.x, first.y, first.rx, first.ry, 0, firstAngles.start, firstAngles.end);
-  target.lineTo(secondEnd.x, secondEnd.y);
-  target.ellipse(second.x, second.y, second.rx, second.ry, 0, secondAngles.end, secondAngles.start, true);
-  target.lineTo(firstStart.x, firstStart.y);
-  target.closePath();
-}
-
-function ellipsePoint(ellipse, angle) {
-  return {
-    x: ellipse.x + Math.cos(angle) * ellipse.rx,
-    y: ellipse.y + Math.sin(angle) * ellipse.ry
-  };
-}
-
-function withViewTransform(target, box, draw) {
-  const scale = Math.min(
-    (target.canvas.width - VIEW_PADDING * 2) / box.width,
-    (target.canvas.height - VIEW_PADDING * 2) / box.height
-  );
-  const offsetX = (target.canvas.width - box.width * scale) / 2;
-  const offsetY = (target.canvas.height - box.height * scale) / 2;
-
-  target.save();
-  target.translate(offsetX, offsetY);
-  target.scale(scale, scale);
-  draw();
-  target.restore();
-}
-
-function clearCanvas(target) {
-  target.clearRect(0, 0, target.canvas.width, target.canvas.height);
-  target.fillStyle = "#f7f4ed";
-  target.fillRect(0, 0, target.canvas.width, target.canvas.height);
-}
-
-function drawPatternView(target, options) {
-  clearCanvas(target);
-  withViewTransform(target, FISH_BOX, () => {
-    drawPatternShape(target, options, {
-      guides: options.guides,
-      fullEllipses: options.fullEllipses
-    });
-  });
-}
-
-function applyLayoutFishTransform(target, item) {
-  const zoom = getLayoutZoom();
-  target.translate(item.x, LAYOUT_AXIS_Y);
-  target.scale(zoom, zoom);
-  target.translate(-FISH_BOX.width / 2, -AXIS_Y);
-  if (item.flipped) {
-    target.translate(FISH_BOX.width, 0);
-    target.scale(-1, 1);
-  }
-}
-
-function undoLayoutFishTransform(target, item) {
-  const zoom = getLayoutZoom();
-  if (item.flipped) {
-    target.scale(-1, 1);
-    target.translate(-FISH_BOX.width, 0);
-  }
-  target.translate(FISH_BOX.width / 2, AXIS_Y);
-  target.scale(1 / zoom, 1 / zoom);
-  target.translate(-item.x, -LAYOUT_AXIS_Y);
-}
-
-function withLayoutFishTransform(target, item, draw) {
-  target.save();
-  applyLayoutFishTransform(target, item);
-  draw();
-  target.restore();
-}
-
-function drawLayoutFishArea(target, item, pattern, color) {
-  withLayoutFishTransform(target, item, () => {
-    target.globalAlpha = 1;
-    target.globalCompositeOperation = "source-over";
-    drawPatternAreas(target, pattern.params, color);
-  });
-}
-
-function drawLayoutFishIntersection(target, first, second) {
-  target.save();
-  applyLayoutFishTransform(target, first.item);
-  beginFishAreaPath(target, first.pattern.params);
-  target.clip();
-  undoLayoutFishTransform(target, first.item);
-  applyLayoutFishTransform(target, second.item);
-  drawPatternAreas(target, second.pattern.params, mixHexColors(first.color, second.color));
-  target.restore();
-}
-
-function drawLayoutFishIntersections(target, records) {
-  records.forEach((first, firstIndex) => {
-    records.slice(firstIndex + 1).forEach((second) => {
-      drawLayoutFishIntersection(target, first, second);
-    });
-  });
-}
-
-function drawLayoutFishOutline(target, item, pattern) {
-  withLayoutFishTransform(target, item, () => {
-    target.globalAlpha = 1;
-    target.globalCompositeOperation = "source-over";
-    drawPatternShape(target, pattern.params, { guides: false, fullEllipses: false, color: FISH_OUTLINE_COLOR });
-  });
-}
-
-function drawLayoutView(target) {
-  clearCanvas(target);
-  withViewTransform(target, LAYOUT_BOX, () => {
-    drawA0Frame(target);
-
-    target.save();
-    target.strokeStyle = "rgba(223, 91, 53, 0.72)";
-    target.lineWidth = 1.5;
-    target.setLineDash([12, 9]);
-    target.beginPath();
-    target.moveTo(20, LAYOUT_AXIS_Y);
-    target.lineTo(LAYOUT_BOX.width - 20, LAYOUT_AXIS_Y);
-    target.stroke();
-    target.restore();
-
-    const records = layoutItems
-      .map((item, index) => ({
-        item,
-        pattern: savedPatterns.find((saved) => saved.id === item.patternId),
-        color: layoutFishColor(index)
-      }))
-      .filter((record) => record.pattern);
-
-    records.forEach(({ item, pattern, color }) => {
-      drawLayoutFishArea(target, item, pattern, color);
-    });
-
-    drawLayoutFishIntersections(target, records);
-
-    records.forEach(({ item, pattern }) => {
-      drawLayoutFishOutline(target, item, pattern);
-    });
-  });
-}
-
-function drawA0Frame(target) {
-  target.save();
-  target.fillStyle = "rgba(255, 255, 255, 0.34)";
-  target.strokeStyle = "rgba(24, 34, 31, 0.42)";
-  target.lineWidth = 2;
-  target.setLineDash([]);
-  target.fillRect(0, 0, LAYOUT_BOX.width, LAYOUT_BOX.height);
-  target.strokeRect(0, 0, LAYOUT_BOX.width, LAYOUT_BOX.height);
-
-  target.fillStyle = "rgba(24, 34, 31, 0.62)";
-  target.font = "16px ui-monospace, SFMono-Regular, Menlo, monospace";
-  target.fillText("A0 landscape 1189 x 841 mm", 14, 24);
-  target.restore();
-}
-
-function getPatternOptions() {
-  const options = {};
-  patternParamNames.forEach((name) => {
-    const control = controls[name];
-    if (control instanceof HTMLInputElement && control.type === "checkbox") {
-      options[name] = control.checked;
-    } else {
-      options[name] = Number(control.value);
-    }
-  });
-  return options;
-}
-
-function getSavedParamsFromControls() {
-  const options = getPatternOptions();
-  return Object.fromEntries(savedParamNames.map((name) => [name, options[name]]));
-}
-
-function applyPatternParams(params) {
-  savedParamNames.forEach((name) => {
-    if (params[name] === undefined || !controls[name]) return;
-    controls[name].value = String(params[name]);
-  });
-  render();
-}
-
-function updatePatternReadout(options) {
-  const ellipses = fishEllipses(options);
-  controls.readout.innerHTML = [
-    "<strong>Single pattern view</strong>",
-    `Shared center line: y=${AXIS_Y}`,
-    `Eye center: (${options.eyeX}, ${AXIS_Y})`,
-    `Ellipse centers: ${ellipses.map((ellipse) => `(${ellipse.x}, ${ellipse.y})`).join(", ")}`,
-    `Ellipse 4 size: ${options.e4Width} x ${options.e4Height}`
-  ].join("<br>");
-
-  Object.entries(outputs).forEach(([name, output]) => {
-    if (output) output.value = controls[name].value;
-  });
-}
-
-function updateLayoutReadout() {
-  controls.readout.innerHTML = [
-    "<strong>Layout view</strong>",
-    `Saved patterns: ${savedPatterns.length}`,
-    `Fishes in layout: ${layoutItems.length}`,
-    `Layout zoom: ${Math.round(getLayoutZoom() * 100)}%`,
-    `All layout fish centers stay on A0 midline y=${LAYOUT_AXIS_Y}; only X is editable.`
-  ].join("<br>");
-}
-
-function getLayoutZoom() {
-  return Number(controls.layoutZoom.value) / 100;
-}
-
-function loadLegacyLocalStorageItems(storageKey) {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(storageKey) || "[]");
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function readLegacyLocalStorageLibrary() {
-  return {
-    patterns: loadLegacyLocalStorageItems(PATTERN_STORAGE_KEY),
-    layouts: loadLegacyLocalStorageItems(LAYOUT_STORAGE_KEY)
-  };
-}
-
-async function loadSavedLibraryFromApi() {
-  try {
-    const response = await fetch(API_ART_URL);
-    if (!response.ok) return;
-    const library = await response.json();
-    savedPatterns = Array.isArray(library.patterns) ? library.patterns : [];
-    savedLayouts = Array.isArray(library.layouts) ? library.layouts : [];
-    renderSavedPatterns();
-    renderLayoutItems();
-    updateLayoutLoadSelect();
-    render();
-  } catch (error) {
-    console.warn("Could not load saved art from backend API.", error);
-  }
-}
-
-async function exportLocalStorageToServer() {
-  const legacy = readLegacyLocalStorageLibrary();
-  const patternResults = await Promise.allSettled(
-    legacy.patterns.map((pattern) => persistArtifactToApi("pattern", pattern))
-  );
-  const layoutResults = await Promise.allSettled(
-    legacy.layouts.map((layout) => persistArtifactToApi("layout", layout))
-  );
-  const failed = [...patternResults, ...layoutResults].filter((result) => result.status === "rejected");
-
-  await loadSavedLibraryFromApi();
-  const summary = {
-    patterns: legacy.patterns.length,
-    layouts: legacy.layouts.length,
-    failed: failed.length
-  };
-  console.info("Exported localStorage art library to server files.", summary);
-  return summary;
-}
-
-async function persistArtifactToApi(kind, artifact) {
-  const collection = kind === "pattern" ? "patterns" : "layouts";
-  const name = encodeURIComponent(artifact.name || artifact.id || "untitled");
-  const response = await fetch(`${API_ART_URL}/${collection}/${name}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(artifact)
-  });
-  if (!response.ok) {
-    throw new Error(`Save failed with ${response.status}`);
-  }
-}
-
-async function saveCurrentPattern() {
-  const name = controls.patternName.value.trim() || `Pattern ${savedPatterns.length + 1}`;
-  const pattern = {
-    id: `pattern-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
-    name,
-    params: getSavedParamsFromControls()
-  };
-  try {
-    await persistArtifactToApi("pattern", pattern);
-  } catch (error) {
-    console.error("Pattern save failed.", error);
-    return;
-  }
-  savedPatterns = [...savedPatterns.filter((saved) => saved.name !== pattern.name), pattern];
-  controls.patternName.value = `Pattern ${savedPatterns.length + 1}`;
-  updatePatternLoadSelect(pattern.id);
-  renderSavedPatterns();
-  render();
-}
-
-function loadSelectedPattern() {
-  const pattern = savedPatterns.find((saved) => saved.id === controls.patternLoadSelect.value);
-  if (!pattern) return;
-  applyPatternParams(pattern.params);
-  controls.patternName.value = pattern.name;
-}
-
-function deletePattern(id) {
-  savedPatterns = savedPatterns.filter((pattern) => pattern.id !== id);
-  layoutItems = layoutItems.filter((item) => item.patternId !== id);
-  renderSavedPatterns();
-  renderLayoutItems();
-  render();
-}
-
-function addLayoutFish(patternId, flipped = false) {
-  layoutItems = [
-    ...layoutItems,
-    {
-      id: `fish-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
-      patternId,
-      flipped,
-      x: Math.round(LAYOUT_BOX.width / 2)
-    }
-  ];
-  renderLayoutItems();
-  render();
-}
-
-function updateLayoutFishX(id, value) {
-  layoutItems = layoutItems.map((item) => (item.id === id ? { ...item, x: value } : item));
-  render();
-}
-
-function removeLayoutFish(id) {
-  layoutItems = layoutItems.filter((item) => item.id !== id);
-  renderLayoutItems();
-  render();
-}
-
-async function saveCurrentLayout() {
-  const name = controls.layoutName.value.trim() || `Layout ${savedLayouts.length + 1}`;
-  const layout = {
-    id: `layout-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
-    name,
-    zoom: Number(controls.layoutZoom.value),
-    items: layoutItems.map((item) => ({ ...item }))
-  };
-  try {
-    await persistArtifactToApi("layout", layout);
-  } catch (error) {
-    console.error("Layout save failed.", error);
-    return;
-  }
-  savedLayouts = [...savedLayouts.filter((saved) => saved.name !== layout.name), layout];
-  controls.layoutName.value = `Layout ${savedLayouts.length + 1}`;
-  updateLayoutLoadSelect(layout.id);
-  render();
-}
-
-function loadSelectedLayout() {
-  const layout = savedLayouts.find((saved) => saved.id === controls.layoutLoadSelect.value);
-  if (!layout) return;
-  layoutItems = layout.items.map((item) => ({ ...item }));
-  controls.layoutZoom.value = String(layout.zoom || 100);
-  controls.layoutName.value = layout.name;
-  renderLayoutItems();
-  render();
-}
-
-function renderSavedPatterns() {
-  updatePatternLoadSelect(controls.patternLoadSelect.value);
-  controls.savedPatterns.innerHTML = "";
-  if (savedPatterns.length === 0) {
-    controls.savedPatterns.innerHTML = '<p class="empty">No saved patterns yet.</p>';
-    return;
-  }
-
-  savedPatterns.forEach((pattern) => {
-    const row = document.createElement("div");
-    row.className = "list-row";
-    row.innerHTML = `<strong>${pattern.name}</strong>`;
-
-    const add = document.createElement("button");
-    add.type = "button";
-    add.textContent = "Add";
-    add.addEventListener("click", () => addLayoutFish(pattern.id, false));
-
-    const addFlipped = document.createElement("button");
-    addFlipped.type = "button";
-    addFlipped.textContent = "Add flipped";
-    addFlipped.addEventListener("click", () => addLayoutFish(pattern.id, true));
-
-    row.append(add, addFlipped);
-    controls.savedPatterns.append(row);
-  });
-}
-
-function updatePatternLoadSelect(selectedId = "") {
-  controls.patternLoadSelect.innerHTML = "";
-  if (savedPatterns.length === 0) {
-    const option = document.createElement("option");
-    option.value = "";
-    option.textContent = "No saved patterns";
-    controls.patternLoadSelect.append(option);
-    controls.patternLoadSelect.disabled = true;
-    controls.loadPattern.disabled = true;
-    return;
-  }
-
-  controls.patternLoadSelect.disabled = false;
-  controls.loadPattern.disabled = false;
-  savedPatterns.forEach((pattern) => {
-    const option = document.createElement("option");
-    option.value = pattern.id;
-    option.textContent = pattern.name;
-    controls.patternLoadSelect.append(option);
-  });
-
-  const fallback = savedPatterns[0].id;
-  controls.patternLoadSelect.value = savedPatterns.some((pattern) => pattern.id === selectedId) ? selectedId : fallback;
-}
-
-function updateLayoutLoadSelect(selectedId = "") {
-  controls.layoutLoadSelect.innerHTML = "";
-  if (savedLayouts.length === 0) {
-    const option = document.createElement("option");
-    option.value = "";
-    option.textContent = "No saved layouts";
-    controls.layoutLoadSelect.append(option);
-    controls.layoutLoadSelect.disabled = true;
-    controls.loadLayout.disabled = true;
-  return;
-  }
-
-  controls.layoutLoadSelect.disabled = false;
-  controls.loadLayout.disabled = false;
-  savedLayouts.forEach((layout) => {
-    const option = document.createElement("option");
-    option.value = layout.id;
-    option.textContent = layout.name;
-    controls.layoutLoadSelect.append(option);
-  });
-
-  const fallback = savedLayouts[0].id;
-  controls.layoutLoadSelect.value = savedLayouts.some((layout) => layout.id === selectedId) ? selectedId : fallback;
-}
-
-function renderLayoutItems() {
-  controls.layoutItems.innerHTML = "";
-  if (layoutItems.length === 0) {
-    controls.layoutItems.innerHTML = '<p class="empty">No fish in the layout yet.</p>';
-    return;
-  }
-
-  layoutItems.forEach((item, index) => {
-    const pattern = savedPatterns.find((saved) => saved.id === item.patternId);
-    const color = layoutFishColor(index);
-    const row = document.createElement("div");
-    row.className = "list-row";
-
-    const heading = document.createElement("div");
-    heading.className = "fish-row-heading";
-
-    const swatch = document.createElement("span");
-    swatch.className = "fish-swatch";
-    swatch.style.backgroundColor = color;
-    swatch.setAttribute("aria-label", `Fish ${index + 1} color`);
-
-    const title = document.createElement("strong");
-    title.textContent = `${index + 1}. ${pattern ? pattern.name : "Missing pattern"}${item.flipped ? " flipped" : ""}`;
-    heading.append(swatch, title);
-
-    const label = document.createElement("label");
-    label.className = "compact-label";
-    label.innerHTML = "<span>X</span>";
-
-    const range = document.createElement("input");
-    range.type = "range";
-    range.min = String(LAYOUT_X_MIN);
-    range.max = String(LAYOUT_X_MAX);
-    range.value = String(item.x);
-
-    const number = document.createElement("input");
-    number.type = "number";
-    number.className = "number-input";
-    number.min = range.min;
-    number.max = range.max;
-    number.value = range.value;
-
-    range.addEventListener("input", () => {
-      number.value = range.value;
-      updateLayoutFishX(item.id, Number(range.value));
-    });
-
-    number.addEventListener("blur", () => {
-      const next = clamp(Number(number.value), Number(number.min), Number(number.max));
-      number.value = String(next);
-      range.value = String(next);
-      updateLayoutFishX(item.id, next);
-    });
-
-    number.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") number.blur();
-    });
-
-    label.append(range, number);
-
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.textContent = "Remove";
-    remove.addEventListener("click", () => removeLayoutFish(item.id));
-
-    row.append(heading, label, remove);
-    controls.layoutItems.append(row);
-  });
-}
-
-function setView(view) {
-  currentView = view;
-  const isPattern = view === "pattern";
-  controls.patternControls.hidden = !isPattern;
-  controls.layoutControls.hidden = isPattern;
-  controls.patternActionSheet.hidden = !isPattern;
-  controls.layoutActionSheet.hidden = isPattern;
-  controls.patternViewButton.classList.toggle("is-active", isPattern);
-  controls.layoutViewButton.classList.toggle("is-active", !isPattern);
-  render();
+function radians(degrees) {
+  return degrees * Math.PI / 180;
 }
 
 function clamp(value, min, max) {
@@ -752,195 +80,637 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function addNumberInputs() {
-  controls.patternControls.querySelectorAll('input[type="range"]').forEach((range) => {
-    const number = document.createElement("input");
-    number.className = "number-input";
-    number.type = "number";
-    number.min = range.min;
-    number.max = range.max;
-    number.step = range.step || "1";
-    number.value = range.value;
-    number.setAttribute("aria-label", `${range.id} numeric value`);
-
-    range.insertAdjacentElement("afterend", number);
-
-    range.addEventListener("input", () => {
-      number.value = range.value;
-    });
-
-    function applyNumberValue() {
-      if (number.value === "") return;
-      const next = clamp(Number(number.value), Number(range.min), Number(range.max));
-      range.value = String(next);
-      number.value = String(next);
-      render();
-    }
-
-    number.addEventListener("blur", applyNumberValue);
-    number.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        applyNumberValue();
-        number.blur();
-      }
-    });
-  });
+function ellipsePoint(ellipse, angle) {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  const r = radians(ellipse.theta);
+  const cr = Math.cos(r);
+  const sr = Math.sin(r);
+  return {
+    x: ellipse.cx + ellipse.a * c * cr - ellipse.b * s * sr,
+    y: ellipse.cy + ellipse.a * c * sr + ellipse.b * s * cr
+  };
 }
 
-function syncNumberInputs() {
-  controls.patternControls.querySelectorAll('input[type="range"]').forEach((range) => {
-    const number = range.nextElementSibling;
-    if (number instanceof HTMLInputElement && number.type === "number") {
-      number.value = range.value;
+function ellipseValue(ellipse, point) {
+  const r = radians(-ellipse.theta);
+  const dx = point.x - ellipse.cx;
+  const dy = point.y - ellipse.cy;
+  const x = dx * Math.cos(r) - dy * Math.sin(r);
+  const y = dx * Math.sin(r) + dy * Math.cos(r);
+  return (x * x) / (ellipse.a * ellipse.a) + (y * y) / (ellipse.b * ellipse.b) - 1;
+}
+
+function sampleArc(ellipse, steps = 96, mirrorY = false) {
+  const start = radians(ellipse.start);
+  let end = radians(ellipse.end);
+  if (end <= start) end += TWO_PI;
+  const points = [];
+  for (let i = 0; i <= steps; i += 1) {
+    const point = ellipsePoint(ellipse, start + (end - start) * i / steps);
+    points.push(mirrorY ? { x: point.x, y: -point.y } : point);
+  }
+  return points;
+}
+
+function sampleEllipse(ellipse, steps = 192) {
+  return Array.from({ length: steps }, (_, index) => ellipsePoint(ellipse, TWO_PI * index / steps));
+}
+
+function roundedPointKey(point) {
+  return `${Math.round(point.x * 10) / 10},${Math.round(point.y * 10) / 10}`;
+}
+
+function findEllipseIntersections() {
+  const found = new Map();
+  for (let a = 0; a < state.ellipses.length; a += 1) {
+    for (let b = a + 1; b < state.ellipses.length; b += 1) {
+      const first = state.ellipses[a];
+      const second = state.ellipses[b];
+      let previousT = 0;
+      let previousPoint = ellipsePoint(first, 0);
+      let previousValue = ellipseValue(second, previousPoint);
+      for (let step = 1; step <= 720; step += 1) {
+        const t = TWO_PI * step / 720;
+        const point = ellipsePoint(first, t);
+        const value = ellipseValue(second, point);
+        if (Math.abs(value) < 0.002 || value * previousValue < 0) {
+          const refined = refineIntersection(first, second, previousT, t);
+          const key = roundedPointKey(refined);
+          found.set(key, { ...refined, pair: `E${a + 1}/E${b + 1}` });
+        }
+        previousT = t;
+        previousValue = value;
+      }
     }
+  }
+  return [...found.values()];
+}
+
+function refineIntersection(first, second, low, high) {
+  let a = low;
+  let b = high;
+  let fa = ellipseValue(second, ellipsePoint(first, a));
+  for (let i = 0; i < 28; i += 1) {
+    const mid = (a + b) / 2;
+    const fm = ellipseValue(second, ellipsePoint(first, mid));
+    if (fa * fm <= 0) {
+      b = mid;
+    } else {
+      a = mid;
+      fa = fm;
+    }
+  }
+  return ellipsePoint(first, (a + b) / 2);
+}
+
+function transformForCanvas(canvas, box) {
+  const padding = 52;
+  const scale = Math.min((canvas.width - padding * 2) / box.width, (canvas.height - padding * 2) / box.height);
+  return {
+    scale,
+    ox: canvas.width / 2,
+    oy: canvas.height / 2,
+    toScreen(point) {
+      return { x: this.ox + point.x * scale, y: this.oy + point.y * scale };
+    },
+    toWorld(point) {
+      return { x: (point.x - this.ox) / scale, y: (point.y - this.oy) / scale };
+    }
+  };
+}
+
+function clear(ctx, color = "#f7f3ea") {
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+}
+
+function drawPolyline(ctx, transform, points, close = false) {
+  if (points.length === 0) return;
+  const first = transform.toScreen(points[0]);
+  ctx.beginPath();
+  ctx.moveTo(first.x, first.y);
+  points.slice(1).forEach((point) => {
+    const screen = transform.toScreen(point);
+    ctx.lineTo(screen.x, screen.y);
   });
+  if (close) ctx.closePath();
+}
+
+function drawEllipseWire(ctx, transform, ellipse, index) {
+  if (state.showFullEllipses) {
+    drawPolyline(ctx, transform, sampleEllipse(ellipse), true);
+    ctx.strokeStyle = `hsla(${index * 64 + 16}, 62%, 37%, 0.34)`;
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([6, 7]);
+    ctx.stroke();
+  }
+
+  drawPolyline(ctx, transform, sampleArc(ellipse, 72), false);
+  ctx.strokeStyle = `hsla(${index * 64 + 16}, 70%, 31%, 0.95)`;
+  ctx.lineWidth = index === state.activeEllipse ? 4 : 2.5;
+  ctx.setLineDash([]);
+  ctx.stroke();
+
+  drawPolyline(ctx, transform, sampleArc(ellipse, 72, true), false);
+  ctx.strokeStyle = `hsla(${index * 64 + 16}, 70%, 31%, 0.55)`;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function drawPoint(ctx, transform, point, radius, color) {
+  const screen = transform.toScreen(point);
+  ctx.beginPath();
+  ctx.arc(screen.x, screen.y, radius, 0, TWO_PI);
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
+function drawGeometry() {
+  clear(geometryCtx);
+  const transform = transformForCanvas(controls.geometryCanvas, GEOMETRY_BOX);
+
+  if (state.showGuides) {
+    geometryCtx.save();
+    geometryCtx.strokeStyle = "rgba(23, 32, 29, 0.14)";
+    geometryCtx.lineWidth = 1;
+    for (let x = -360; x <= 360; x += 60) {
+      const a = transform.toScreen({ x, y: -250 });
+      const b = transform.toScreen({ x, y: 250 });
+      geometryCtx.beginPath();
+      geometryCtx.moveTo(a.x, a.y);
+      geometryCtx.lineTo(b.x, b.y);
+      geometryCtx.stroke();
+    }
+    for (let y = -240; y <= 240; y += 60) {
+      const a = transform.toScreen({ x: -370, y });
+      const b = transform.toScreen({ x: 370, y });
+      geometryCtx.beginPath();
+      geometryCtx.moveTo(a.x, a.y);
+      geometryCtx.lineTo(b.x, b.y);
+      geometryCtx.stroke();
+    }
+    const axisStart = transform.toScreen({ x: -380, y: 0 });
+    const axisEnd = transform.toScreen({ x: 380, y: 0 });
+    geometryCtx.strokeStyle = "rgba(201, 79, 47, 0.72)";
+    geometryCtx.lineWidth = 1.5;
+    geometryCtx.setLineDash([11, 8]);
+    geometryCtx.beginPath();
+    geometryCtx.moveTo(axisStart.x, axisStart.y);
+    geometryCtx.lineTo(axisEnd.x, axisEnd.y);
+    geometryCtx.stroke();
+    geometryCtx.restore();
+  }
+
+  state.ellipses.forEach((ellipse, index) => drawEllipseWire(geometryCtx, transform, ellipse, index));
+
+  lastIntersections = findEllipseIntersections();
+  lastIntersections.forEach((point) => drawPoint(geometryCtx, transform, point, 5, "#147f83"));
+
+  state.ellipses.forEach((ellipse, index) => {
+    drawPoint(geometryCtx, transform, ellipse, index === state.activeEllipse ? 7 : 5, "#c94f2f");
+  });
+  drawPoint(geometryCtx, transform, { x: state.module.eyeX, y: state.module.eyeY }, state.module.eyeRadius, "#17201d");
+
+  controls.geometryMetric.textContent = `${lastIntersections.length} intersections`;
+}
+
+function fishOutlinePoints() {
+  const top = state.ellipses.flatMap((ellipse) => sampleArc(ellipse, 42));
+  const bottom = [...top].reverse().map((point) => ({ x: point.x, y: -point.y }));
+  return [...top, ...bottom];
+}
+
+function drawFishUnit(ctx, transform, offset, variant) {
+  const palette = palettes[state.palette];
+  const outline = fishOutlinePoints().map((point) => ({
+    x: point.x * state.module.scale + offset.x,
+    y: point.y * state.module.scale + offset.y
+  }));
+
+  ctx.save();
+  drawPolyline(ctx, transform, outline, true);
+  ctx.clip();
+  paintCells(ctx, transform, offset, variant, palette);
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = palette[4] || "#191919";
+  ctx.lineWidth = state.module.strokeWidth;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  state.ellipses.forEach((ellipse) => {
+    const top = sampleArc(ellipse, 60).map((point) => scaleOffset(point, offset));
+    const bottom = sampleArc(ellipse, 60, true).map((point) => scaleOffset(point, offset));
+    drawPolyline(ctx, transform, top);
+    ctx.stroke();
+    drawPolyline(ctx, transform, bottom);
+    ctx.stroke();
+  });
+  const eye = transform.toScreen(scaleOffset({ x: state.module.eyeX, y: state.module.eyeY }, offset));
+  ctx.beginPath();
+  ctx.arc(eye.x, eye.y, state.module.eyeRadius * transform.scale * state.module.scale, 0, TWO_PI);
+  ctx.fillStyle = palette[4] || "#191919";
+  ctx.fill();
+  ctx.restore();
+}
+
+function scaleOffset(point, offset) {
+  return {
+    x: point.x * state.module.scale + offset.x,
+    y: point.y * state.module.scale + offset.y
+  };
+}
+
+function paintCells(ctx, transform, offset, variant, palette) {
+  const cell = 30 * state.module.scale;
+  const width = MODULE_WIDTH * state.module.scale;
+  const height = state.module.pitchY * 0.94 * state.module.scale;
+  for (let y = -height / 2; y <= height / 2; y += cell) {
+    for (let x = -width / 2; x <= width / 2; x += cell) {
+      const overlap = ellipseOverlapAt({ x: x / state.module.scale, y: y / state.module.scale });
+      const colorIndex = colorIndexForCell(x, y, variant, overlap, palette.length);
+      const a = transform.toScreen({ x: offset.x + x, y: offset.y + y });
+      const b = transform.toScreen({ x: offset.x + x + cell + 1, y: offset.y + y + cell + 1 });
+      ctx.fillStyle = palette[colorIndex];
+      ctx.globalAlpha = state.style === "overlap" ? 0.58 + overlap * 0.08 : 0.9;
+      if (state.style === "stripes") {
+        ctx.fillRect(a.x, a.y, b.x - a.x, Math.max(1, (b.y - a.y) * 0.48));
+      } else {
+        ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y);
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  if (state.style === "gradient") {
+    const left = transform.toScreen({ x: offset.x - width / 2, y: offset.y });
+    const right = transform.toScreen({ x: offset.x + width / 2, y: offset.y });
+    const gradient = ctx.createLinearGradient(left.x, 0, right.x, 0);
+    gradient.addColorStop(0, palette[0]);
+    gradient.addColorStop(0.5, palette[2]);
+    gradient.addColorStop(1, palette[3]);
+    ctx.fillStyle = gradient;
+    ctx.globalAlpha = 0.48;
+    const top = transform.toScreen({ x: offset.x - width / 2, y: offset.y - height / 2 });
+    const bottom = transform.toScreen({ x: offset.x + width / 2, y: offset.y + height / 2 });
+    ctx.fillRect(top.x, top.y, bottom.x - top.x, bottom.y - top.y);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function ellipseOverlapAt(point) {
+  return state.ellipses.reduce((total, ellipse) => total + (ellipseValue(ellipse, point) <= 0 ? 1 : 0), 0);
+}
+
+function colorIndexForCell(x, y, variant, overlap, paletteLength) {
+  if (state.style === "overlap") return clamp(overlap, 0, paletteLength - 1);
+  if (state.style === "stripes") return Math.abs(Math.floor((y + variant * 17) / 30)) % paletteLength;
+  if (state.style === "gradient") return Math.abs(Math.floor((x + y) / 62 + variant)) % paletteLength;
+  return Math.abs(Math.floor(x / 30) + Math.floor(y / 30) + variant) % paletteLength;
+}
+
+function drawArtwork(ctx = artCtx) {
+  clear(ctx, "#ede8dc");
+  const transform = transformForCanvas(ctx.canvas, ART_BOX);
+  const pitch = state.module.pitchY * state.module.scale;
+  const columnPitch = MODULE_WIDTH * 0.78 * state.module.scale;
+  let modules = 0;
+
+  drawBackgroundPattern(ctx);
+  for (let row = -3; row <= 3; row += 1) {
+    for (let col = -2; col <= 2; col += 1) {
+      const flip = (row + col) % 2 !== 0;
+      const offset = {
+        x: col * columnPitch,
+        y: row * pitch
+      };
+      ctx.save();
+      if (flip) {
+        const origin = transform.toScreen(offset);
+        ctx.translate(origin.x, origin.y);
+        ctx.scale(-1, 1);
+        ctx.translate(-origin.x, -origin.y);
+      }
+      drawFishUnit(ctx, transform, offset, row * 7 + col);
+      ctx.restore();
+      modules += 1;
+    }
+  }
+
+  if (ctx === artCtx) controls.artMetric.textContent = `${modules} modules / Sy ${state.module.pitchY}`;
+}
+
+function drawBackgroundPattern(ctx) {
+  const palette = palettes[state.palette];
+  const size = state.style === "stripes" ? 34 : 42;
+  for (let y = 0; y < ctx.canvas.height; y += size) {
+    for (let x = 0; x < ctx.canvas.width; x += size) {
+      const index = Math.floor(x / size) + Math.floor(y / size);
+      ctx.fillStyle = palette[index % palette.length];
+      ctx.globalAlpha = state.style === "chequer" ? 0.15 : 0.08;
+      ctx.fillRect(x, y, size, size);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+function renderReadout() {
+  const active = state.ellipses[state.activeEllipse];
+  const pointSummary = lastIntersections.slice(0, 6).map((point) => {
+    return `${point.pair} (${point.x.toFixed(1)}, ${point.y.toFixed(1)})`;
+  });
+  controls.readout.innerHTML = [
+    `<strong>${active.label}</strong>`,
+    `center (${active.cx}, ${active.cy}), axes ${active.a} / ${active.b}, theta ${active.theta} deg`,
+    `arc ${active.start} deg to ${active.end} deg; mirrored across y=0`,
+    `eye (${state.module.eyeX}, ${state.module.eyeY}), Sy ${state.module.pitchY}`,
+    pointSummary.length ? pointSummary.join("<br>") : "No ellipse intersections in the current configuration."
+  ].join("<br>");
 }
 
 function render() {
-  if (currentView === "pattern") {
-    const options = getPatternOptions();
-    drawPatternView(ctx, options);
-    updatePatternReadout(options);
-    syncNumberInputs();
+  drawGeometry();
+  drawArtwork();
+  renderReadout();
+}
+
+function createRange(parent, config, getter, setter) {
+  const label = document.createElement("label");
+  const title = document.createElement("span");
+  const output = document.createElement("output");
+  const range = document.createElement("input");
+  const number = document.createElement("input");
+
+  range.type = "range";
+  range.min = config.min;
+  range.max = config.max;
+  range.step = config.step || 1;
+  number.type = "number";
+  number.min = config.min;
+  number.max = config.max;
+  number.step = config.step || 1;
+
+  function sync(value) {
+    output.value = String(value);
+    range.value = String(value);
+    number.value = String(value);
+  }
+
+  function apply(value) {
+    const next = clamp(Number(value), Number(config.min), Number(config.max));
+    setter(next);
+    sync(next);
+    render();
+  }
+
+  title.append(config.label, output);
+  label.append(title, range, number);
+  parent.append(label);
+  sync(getter());
+
+  range.addEventListener("input", () => apply(range.value));
+  number.addEventListener("change", () => apply(number.value));
+  number.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") number.blur();
+  });
+}
+
+function buildControls() {
+  const moduleFields = [
+    ["pitchY", "Vertical pitch Sy", 80, 310],
+    ["eyeX", "Eye x", -230, 40],
+    ["eyeY", "Eye y", -80, 80],
+    ["eyeRadius", "Eye radius", 3, 24],
+    ["strokeWidth", "Stroke", 1, 9, 0.2],
+    ["scale", "Module scale", 0.55, 1.45, 0.01]
+  ];
+  moduleFields.forEach(([key, label, min, max, step]) => {
+    createRange(
+      controls.moduleControls,
+      { label, min, max, step },
+      () => state.module[key],
+      (value) => {
+        state.module[key] = value;
+      }
+    );
+  });
+
+  state.ellipses.forEach((ellipse, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = `E${index + 1}`;
+    button.addEventListener("click", () => {
+      state.activeEllipse = index;
+      rebuildEllipseControls();
+      render();
+    });
+    controls.ellipseTabs.append(button);
+  });
+
+  Object.keys(palettes).forEach((key) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = key[0].toUpperCase() + key.slice(1);
+    button.addEventListener("click", () => {
+      state.palette = key;
+      syncButtonStates();
+      render();
+    });
+    controls.paletteControls.append(button);
+  });
+
+  Object.entries(styleLabels).forEach(([key, label]) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    button.addEventListener("click", () => {
+      state.style = key;
+      syncButtonStates();
+      render();
+    });
+    controls.styleControls.append(button);
+  });
+
+  controls.showGuides.addEventListener("change", () => {
+    state.showGuides = controls.showGuides.checked;
+    render();
+  });
+  controls.showFullEllipses.addEventListener("change", () => {
+    state.showFullEllipses = controls.showFullEllipses.checked;
+    render();
+  });
+  controls.resetButton.addEventListener("click", reset);
+  controls.exportSvgButton.addEventListener("click", exportSvg);
+  controls.exportPngButton.addEventListener("click", exportPng);
+  rebuildEllipseControls();
+  syncButtonStates();
+}
+
+function rebuildEllipseControls() {
+  controls.ellipseControls.innerHTML = "";
+  const form = document.createElement("div");
+  form.className = "ellipse-form";
+  const ellipse = state.ellipses[state.activeEllipse];
+  [
+    ["cx", "Center x", -260, 260],
+    ["cy", "Center y", -160, 160],
+    ["a", "Semi-major a", 24, 300],
+    ["b", "Semi-minor b", 20, 220],
+    ["theta", "Theta", -70, 70],
+    ["start", "Arc start", 0, 359],
+    ["end", "Arc end", 1, 360]
+  ].forEach(([key, label, min, max]) => {
+    createRange(
+      form,
+      { label, min, max },
+      () => ellipse[key],
+      (value) => {
+        ellipse[key] = value;
+      }
+    );
+  });
+  controls.ellipseControls.append(form);
+  syncButtonStates();
+}
+
+function syncButtonStates() {
+  [...controls.ellipseTabs.children].forEach((button, index) => {
+    button.classList.toggle("is-active", index === state.activeEllipse);
+  });
+  [...controls.paletteControls.children].forEach((button) => {
+    button.classList.toggle("is-active", button.textContent.toLowerCase() === state.palette);
+  });
+  [...controls.styleControls.children].forEach((button) => {
+    const key = Object.entries(styleLabels).find((entry) => entry[1] === button.textContent)?.[0];
+    button.classList.toggle("is-active", key === state.style);
+  });
+}
+
+function reset() {
+  state.module = JSON.parse(JSON.stringify(defaults.module));
+  state.ellipses = JSON.parse(JSON.stringify(defaults.ellipses));
+  state.activeEllipse = 0;
+  controls.moduleControls.innerHTML = "";
+  controls.ellipseTabs.innerHTML = "";
+  controls.paletteControls.innerHTML = "";
+  controls.styleControls.innerHTML = "";
+  buildControls();
+  render();
+}
+
+function pointerPosition(event) {
+  const rect = controls.geometryCanvas.getBoundingClientRect();
+  const scaleX = controls.geometryCanvas.width / rect.width;
+  const scaleY = controls.geometryCanvas.height / rect.height;
+  return {
+    x: (event.clientX - rect.left) * scaleX,
+    y: (event.clientY - rect.top) * scaleY
+  };
+}
+
+function nearestHandle(world) {
+  const candidates = [
+    ...state.ellipses.map((ellipse, index) => ({ type: "ellipse", index, x: ellipse.cx, y: ellipse.cy })),
+    { type: "eye", index: -1, x: state.module.eyeX, y: state.module.eyeY }
+  ];
+  return candidates.reduce((best, item) => {
+    const distance = Math.hypot(world.x - item.x, world.y - item.y);
+    return distance < best.distance ? { ...item, distance } : best;
+  }, { distance: Infinity });
+}
+
+controls.geometryCanvas.addEventListener("pointerdown", (event) => {
+  const transform = transformForCanvas(controls.geometryCanvas, GEOMETRY_BOX);
+  const world = transform.toWorld(pointerPosition(event));
+  const nearest = nearestHandle(world);
+  if (nearest.distance > 18) return;
+  dragTarget = nearest;
+  if (nearest.type === "ellipse") state.activeEllipse = nearest.index;
+  rebuildEllipseControls();
+  controls.geometryCanvas.setPointerCapture(event.pointerId);
+});
+
+controls.geometryCanvas.addEventListener("pointermove", (event) => {
+  if (!dragTarget) return;
+  const transform = transformForCanvas(controls.geometryCanvas, GEOMETRY_BOX);
+  const world = transform.toWorld(pointerPosition(event));
+  if (dragTarget.type === "eye") {
+    state.module.eyeX = Math.round(clamp(world.x, -230, 40));
+    state.module.eyeY = Math.round(clamp(world.y, -80, 80));
   } else {
-    drawLayoutView(ctx);
-    updateLayoutReadout();
-    controls.layoutZoomValue.value = `${controls.layoutZoom.value}%`;
+    const ellipse = state.ellipses[dragTarget.index];
+    ellipse.cx = Math.round(clamp(world.x, -260, 260));
+    ellipse.cy = Math.round(clamp(world.y, -160, 160));
   }
+  controls.moduleControls.innerHTML = "";
+  controls.ellipseTabs.innerHTML = "";
+  controls.paletteControls.innerHTML = "";
+  controls.styleControls.innerHTML = "";
+  buildControls();
+  render();
+});
+
+controls.geometryCanvas.addEventListener("pointerup", () => {
+  dragTarget = null;
+});
+
+function exportPng() {
+  const output = document.createElement("canvas");
+  output.width = ART_BOX.width * 2;
+  output.height = ART_BOX.height * 2;
+  const target = output.getContext("2d");
+  drawArtwork(target);
+  download("fish-tessellation.png", output.toDataURL("image/png"));
 }
 
-function arcPath(ellipse, fullEllipse) {
-  if (fullEllipse) {
+function svgPolyline(points) {
+  return points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" ");
+}
+
+function createUnitSvg(offset, flip, variant) {
+  const palette = palettes[state.palette];
+  const transform = flip ? `translate(${offset.x} ${offset.y}) scale(-1 1)` : `translate(${offset.x} ${offset.y})`;
+  const fill = palette[Math.abs(variant) % palette.length];
+  const paths = state.ellipses.flatMap((ellipse) => {
     return [
-      `M ${ellipse.x - ellipse.rx} ${ellipse.y}`,
-      `A ${ellipse.rx} ${ellipse.ry} 0 1 0 ${ellipse.x + ellipse.rx} ${ellipse.y}`,
-      `A ${ellipse.rx} ${ellipse.ry} 0 1 0 ${ellipse.x - ellipse.rx} ${ellipse.y}`
-    ].join(" ");
-  }
-
-  const { start, end } = visibleArcAngles(ellipse);
-  const startPoint = {
-    x: ellipse.x + Math.cos(start) * ellipse.rx,
-    y: ellipse.y + Math.sin(start) * ellipse.ry
-  };
-  const endPoint = {
-    x: ellipse.x + Math.cos(end) * ellipse.rx,
-    y: ellipse.y + Math.sin(end) * ellipse.ry
-  };
-  const largeArc = Math.abs(end - start) > Math.PI ? 1 : 0;
-
-  return `M ${startPoint.x} ${startPoint.y} A ${ellipse.rx} ${ellipse.ry} 0 ${largeArc} 1 ${endPoint.x} ${endPoint.y}`;
-}
-
-function curvePairAreaPath(first, second) {
-  const firstAngles = visibleArcAngles(first);
-  const secondAngles = visibleArcAngles(second);
-  const firstStart = ellipsePoint(first, firstAngles.start);
-  const firstEnd = ellipsePoint(first, firstAngles.end);
-  const secondStart = ellipsePoint(second, secondAngles.start);
-  const secondEnd = ellipsePoint(second, secondAngles.end);
-  return [
-    `M ${firstStart.x} ${firstStart.y}`,
-    `A ${first.rx} ${first.ry} 0 0 1 ${firstEnd.x} ${firstEnd.y}`,
-    `L ${secondEnd.x} ${secondEnd.y}`,
-    `A ${second.rx} ${second.ry} 0 0 0 ${secondStart.x} ${secondStart.y}`,
-    "Z"
-  ].join(" ");
-}
-
-function patternSvgAreaPath(options) {
-  const ellipses = fishEllipses(options);
-  return [
-    curvePairAreaPath(ellipses[0], ellipses[1]),
-    curvePairAreaPath(ellipses[2], ellipses[3])
-  ].join(" ");
-}
-
-function patternSvgAreas(options, color) {
-  return `<path d="${patternSvgAreaPath(options)}" fill="${color}" />`;
-}
-
-function patternSvgContent(options, fullEllipses = false, color = FISH_OUTLINE_COLOR) {
-  const ellipses = fishEllipses(options);
-  const paths = ellipses.map((ellipse) => `<path d="${arcPath(ellipse, fullEllipses)}" />`).join("\n    ");
-  return `  <g fill="none" stroke="${color}" stroke-width="${options.strokeWidth}" stroke-linecap="round" stroke-linejoin="round">
-    ${paths}
-  </g>
-  <circle cx="${options.eyeX}" cy="${AXIS_Y}" r="${options.eyeRadius}" fill="${color}" />`;
-}
-
-function createPatternSvg(options) {
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${FISH_BOX.width}" height="${FISH_BOX.height}" viewBox="0 0 ${FISH_BOX.width} ${FISH_BOX.height}">
-  <rect width="100%" height="100%" fill="#f7f4ed" />
-${patternSvgContent(options, options.fullEllipses)}
-</svg>
-`;
-}
-
-function layoutFishTransform(item) {
-  const zoom = getLayoutZoom();
-  return item.flipped
-    ? `translate(${item.x} ${LAYOUT_AXIS_Y}) scale(${zoom} ${zoom}) translate(${-FISH_BOX.width / 2} ${-AXIS_Y}) translate(${FISH_BOX.width} 0) scale(-1 1)`
-    : `translate(${item.x} ${LAYOUT_AXIS_Y}) scale(${zoom} ${zoom}) translate(${-FISH_BOX.width / 2} ${-AXIS_Y})`;
-}
-
-function createLayoutSvg() {
-  const records = layoutItems
-    .map((item, index) => ({
-      item,
-      pattern: savedPatterns.find((saved) => saved.id === item.patternId),
-      color: layoutFishColor(index),
-      clipId: `fish-area-${index}`
-    }))
-    .filter((record) => record.pattern);
-  const clipDefs = records
-    .map(
-      ({ item, pattern, clipId }) => `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse">
-    <g transform="${layoutFishTransform(item)}">
-      <path d="${patternSvgAreaPath(pattern.params)}" />
+      `<path d="${svgPolyline(sampleArc(ellipse, 48))}" />`,
+      `<path d="${svgPolyline(sampleArc(ellipse, 48, true))}" />`
+    ];
+  }).join("\n      ");
+  return `<g transform="${transform}">
+    <path d="${svgPolyline(fishOutlinePoints())} Z" fill="${fill}" opacity="0.82" />
+    <g fill="none" stroke="${palette[4] || "#191919"}" stroke-width="${state.module.strokeWidth}" stroke-linecap="round" stroke-linejoin="round">
+      ${paths}
     </g>
-  </clipPath>`
-    )
-    .join("\n  ");
-  const areaInstances = records
-    .map(
-      ({ item, pattern, color }) => `<g transform="${layoutFishTransform(item)}">
-    ${patternSvgAreas(pattern.params, color)}
-  </g>`
-    )
-    .join("\n  ");
-  const intersectionInstances = records
-    .flatMap((first, firstIndex) =>
-      records.slice(firstIndex + 1).map((second) => {
-        const color = mixHexColors(first.color, second.color);
-        return `<g clip-path="url(#${first.clipId})">
-    <g transform="${layoutFishTransform(second.item)}">
-      ${patternSvgAreas(second.pattern.params, color)}
-    </g>
+    <circle cx="${state.module.eyeX}" cy="${state.module.eyeY}" r="${state.module.eyeRadius}" fill="${palette[4] || "#191919"}" />
   </g>`;
-      })
-    )
-    .join("\n  ");
-  const outlineInstances = records
-    .map(
-      ({ item, pattern }) => `<g transform="${layoutFishTransform(item)}">
-${patternSvgContent(pattern.params, false, FISH_OUTLINE_COLOR)}
-  </g>`
-    )
-    .join("\n  ");
+}
 
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${A0_MM.width}mm" height="${A0_MM.height}mm" viewBox="0 0 ${LAYOUT_BOX.width} ${LAYOUT_BOX.height}">
-  <defs>
-  ${clipDefs}
-  </defs>
-  <rect width="100%" height="100%" fill="#f7f4ed" />
-  ${areaInstances}
-  ${intersectionInstances}
-  ${outlineInstances}
+function exportSvg() {
+  const pitch = state.module.pitchY * state.module.scale;
+  const columnPitch = MODULE_WIDTH * 0.78 * state.module.scale;
+  const units = [];
+  for (let row = -3; row <= 3; row += 1) {
+    for (let col = -2; col <= 2; col += 1) {
+      const flip = (row + col) % 2 !== 0;
+      units.push(createUnitSvg({
+        x: ART_BOX.width / 2 + col * columnPitch,
+        y: ART_BOX.height / 2 + row * pitch
+      }, flip, row * 7 + col));
+    }
+  }
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${ART_BOX.width}" height="${ART_BOX.height}" viewBox="0 0 ${ART_BOX.width} ${ART_BOX.height}">
+  <rect width="100%" height="100%" fill="#ede8dc" />
+  ${units.join("\n  ")}
 </svg>
 `;
+  const blob = new Blob([svg], { type: "image/svg+xml" });
+  const url = URL.createObjectURL(blob);
+  download("fish-tessellation.svg", url);
+  URL.revokeObjectURL(url);
 }
 
 function download(filename, href) {
@@ -950,75 +720,5 @@ function download(filename, href) {
   link.click();
 }
 
-function exportSvg() {
-  const svg = currentView === "pattern" ? createPatternSvg(getPatternOptions()) : createLayoutSvg();
-  const blob = new Blob([svg], { type: "image/svg+xml" });
-  const url = URL.createObjectURL(blob);
-  download(currentView === "pattern" ? "single-fish.svg" : "fish-layout.svg", url);
-  URL.revokeObjectURL(url);
-}
-
-function exportPng() {
-  const output = document.createElement("canvas");
-  if (currentView === "pattern") {
-    output.width = FISH_BOX.width * 2;
-    output.height = FISH_BOX.height * 2;
-    drawPatternView(output.getContext("2d"), { ...getPatternOptions(), guides: false });
-    download("single-fish.png", output.toDataURL("image/png"));
-  } else {
-    output.width = LAYOUT_BOX.width * 2;
-    output.height = LAYOUT_BOX.height * 2;
-    drawLayoutView(output.getContext("2d"));
-    download("fish-layout.png", output.toDataURL("image/png"));
-  }
-}
-
-function resetPatternControls() {
-  Object.entries(defaults).forEach(([key, value]) => {
-    const control = controls[key];
-    if (!control) return;
-    if (control instanceof HTMLInputElement && control.type === "checkbox") {
-      control.checked = Boolean(value);
-    } else {
-      control.value = String(value);
-    }
-  });
-  render();
-}
-
-function resetLayoutControls() {
-  layoutItems = [];
-  renderLayoutItems();
-  render();
-}
-
-patternParamNames.forEach((name) => {
-  const control = controls[name];
-  if (control instanceof HTMLInputElement) {
-    control.addEventListener("input", render);
-    control.addEventListener("change", render);
-  }
-});
-
-controls.patternViewButton.addEventListener("click", () => setView("pattern"));
-controls.layoutViewButton.addEventListener("click", () => setView("layout"));
-controls.layoutZoom.addEventListener("input", render);
-controls.layoutZoom.addEventListener("change", render);
-controls.loadPattern.addEventListener("click", loadSelectedPattern);
-controls.savePattern.addEventListener("click", saveCurrentPattern);
-controls.loadLayout.addEventListener("click", loadSelectedLayout);
-controls.saveLayout.addEventListener("click", saveCurrentLayout);
-controls.resetPattern.addEventListener("click", resetPatternControls);
-controls.resetLayout.addEventListener("click", resetLayoutControls);
-controls.exportPatternSvg.addEventListener("click", exportSvg);
-controls.exportPatternPng.addEventListener("click", exportPng);
-controls.exportLayoutSvg.addEventListener("click", exportSvg);
-controls.exportLayoutPng.addEventListener("click", exportPng);
-
-addNumberInputs();
-renderSavedPatterns();
-renderLayoutItems();
-updateLayoutLoadSelect();
-setView("pattern");
-loadSavedLibraryFromApi();
-window.exportLocalStorageToServer = exportLocalStorageToServer;
+buildControls();
+render();
