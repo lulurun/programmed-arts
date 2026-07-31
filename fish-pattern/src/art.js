@@ -4,7 +4,17 @@ const MODULE_WIDTH = 420;
 const PATTERN_STROKE_WIDTH = 3.4;
 const ART_NAME = "fish-pattern";
 const LOCAL_STATE_KEY = "fish-tessellation-lab-state-v1";
+const STATE_VERSION = 2;
 const TWO_PI = Math.PI * 2;
+const RAINBOW_COLORS = [
+  "#e53935",
+  "#fb8c00",
+  "#fdd835",
+  "#43a047",
+  "#1e88e5",
+  "#3949ab",
+  "#8e24aa"
+];
 
 const palettes = {
   primaries: ["#f3d342", "#e54835", "#1666b1", "#ffffff", "#191919", "#2ba66f"],
@@ -35,7 +45,7 @@ const state = {
     maxFish: 5,
     offsetX: 0,
     scale: 1,
-    colorEnabled: false
+    colorEnabled: true
   },
   ellipses: [
     { label: "C1 Head / outer", leftX: -264, width: 472, height: 224, visible: 58 },
@@ -96,6 +106,7 @@ function apiPath(path) {
 
 function cloneCurrentParams() {
   return JSON.parse(JSON.stringify({
+    version: STATE_VERSION,
     module: state.module,
     layout: state.layout,
     ellipses: state.ellipses,
@@ -125,6 +136,13 @@ function applyStoredState() {
       }
       if (saved.layout && typeof saved.layout === "object") {
         state.layout = { ...state.layout, ...saved.layout };
+        if (saved.version !== STATE_VERSION) state.layout.colorEnabled = true;
+        state.layout = {
+          maxFish: state.layout.maxFish,
+          offsetX: state.layout.offsetX,
+          scale: state.layout.scale,
+          colorEnabled: state.layout.colorEnabled
+        };
       }
       if (Array.isArray(saved.ellipses) && saved.ellipses.length === state.ellipses.length) {
         state.ellipses = state.ellipses.map((ellipse, index) => ({ ...ellipse, ...saved.ellipses[index] }));
@@ -512,21 +530,25 @@ function transformPatternPoint(point, offset, direction = 1) {
   };
 }
 
+function rainbowColorForFish(variant) {
+  const fishNumber = variant >= 101 ? variant - 100 : variant;
+  return RAINBOW_COLORS[(Math.max(1, fishNumber) - 1) % RAINBOW_COLORS.length];
+}
+
 function drawFishUnit(ctx, transform, offset, variant, direction = 1) {
-  const palette = palettes[state.palette];
-  const ink = state.layout.colorEnabled ? palette[4] || "#191919" : "#17201d";
   const outline = fishOutlinePoints().map((point) => transformPatternPoint(point, offset, direction));
 
   if (state.layout.colorEnabled) {
     ctx.save();
     drawPolyline(ctx, transform, outline, true);
-    ctx.clip();
-    paintCells(ctx, transform, offset, variant, palette);
+    ctx.fillStyle = rainbowColorForFish(variant);
+    ctx.globalAlpha = 0.56;
+    ctx.fill();
     ctx.restore();
   }
 
   ctx.save();
-  ctx.strokeStyle = state.layout.colorEnabled ? palette[4] || "#191919" : "#17201d";
+  ctx.strokeStyle = "#17201d";
   ctx.lineWidth = PATTERN_STROKE_WIDTH;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -541,58 +563,9 @@ function drawFishUnit(ctx, transform, offset, variant, direction = 1) {
   const eye = transform.toScreen(transformPatternPoint({ x: state.module.eyeX, y: 0 }, offset, direction));
   ctx.beginPath();
   ctx.arc(eye.x, eye.y, state.module.eyeRadius * transform.scale * state.layout.scale, 0, TWO_PI);
-  ctx.fillStyle = state.layout.colorEnabled ? palette[4] || "#191919" : "#17201d";
+  ctx.fillStyle = "#17201d";
   ctx.fill();
   ctx.restore();
-}
-
-function paintCells(ctx, transform, offset, variant, palette) {
-  const cell = 30 * state.layout.scale;
-  const width = MODULE_WIDTH * state.layout.scale;
-  const patternHeight = Math.max(...state.ellipses.map((ellipse) => ellipse.height));
-  const height = patternHeight * 1.1 * state.layout.scale;
-  for (let y = -height / 2; y <= height / 2; y += cell) {
-    for (let x = -width / 2; x <= width / 2; x += cell) {
-      const overlap = ellipseOverlapAt({ x: x / state.layout.scale, y: y / state.layout.scale });
-      const colorIndex = colorIndexForCell(x, y, variant, overlap, palette.length);
-      const a = transform.toScreen({ x: offset.x + x, y: offset.y + y });
-      const b = transform.toScreen({ x: offset.x + x + cell + 1, y: offset.y + y + cell + 1 });
-      ctx.fillStyle = palette[colorIndex];
-      ctx.globalAlpha = state.style === "overlap" ? 0.58 + overlap * 0.08 : 0.9;
-      if (state.style === "stripes") {
-        ctx.fillRect(a.x, a.y, b.x - a.x, Math.max(1, (b.y - a.y) * 0.48));
-      } else {
-        ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y);
-      }
-    }
-  }
-  ctx.globalAlpha = 1;
-
-  if (state.style === "gradient") {
-    const left = transform.toScreen({ x: offset.x - width / 2, y: offset.y });
-    const right = transform.toScreen({ x: offset.x + width / 2, y: offset.y });
-    const gradient = ctx.createLinearGradient(left.x, 0, right.x, 0);
-    gradient.addColorStop(0, palette[0]);
-    gradient.addColorStop(0.5, palette[2]);
-    gradient.addColorStop(1, palette[3]);
-    ctx.fillStyle = gradient;
-    ctx.globalAlpha = 0.48;
-    const top = transform.toScreen({ x: offset.x - width / 2, y: offset.y - height / 2 });
-    const bottom = transform.toScreen({ x: offset.x + width / 2, y: offset.y + height / 2 });
-    ctx.fillRect(top.x, top.y, bottom.x - top.x, bottom.y - top.y);
-    ctx.globalAlpha = 1;
-  }
-}
-
-function ellipseOverlapAt(point) {
-  return state.ellipses.reduce((total, ellipse) => total + (ellipseValue(ellipse, point) <= 0 ? 1 : 0), 0);
-}
-
-function colorIndexForCell(x, y, variant, overlap, paletteLength) {
-  if (state.style === "overlap") return clamp(overlap, 0, paletteLength - 1);
-  if (state.style === "stripes") return Math.abs(Math.floor((y + variant * 17) / 30)) % paletteLength;
-  if (state.style === "gradient") return Math.abs(Math.floor((x + y) / 62 + variant)) % paletteLength;
-  return Math.abs(Math.floor(x / 30) + Math.floor(y / 30) + variant) % paletteLength;
 }
 
 function drawArtwork(ctx = artCtx) {
@@ -654,7 +627,7 @@ function renderArtReadout() {
     `E4(i) aligns with E1(i+1); repeat step ${roundTo(step)}`,
     `opposite fish share eye x with matching fish`,
     `scale ${state.layout.scale}, offset x ${state.layout.offsetX}`,
-    state.layout.colorEnabled ? `palette ${state.palette}, style ${styleLabels[state.style]}` : "color off"
+    state.layout.colorEnabled ? "rainbow fill: red, orange, yellow, green, blue, indigo, purple" : "color off"
   ].join("<br>");
 }
 
@@ -1011,9 +984,9 @@ function svgPatternPoint(point, direction = 1) {
 }
 
 function createUnitSvg(offset, direction, variant) {
-  const palette = palettes[state.palette];
+  const ink = "#17201d";
   const transform = `translate(${offset.x} ${offset.y}) scale(${state.layout.scale} ${state.layout.scale})`;
-  const fill = palette[Math.abs(variant) % palette.length];
+  const fill = rainbowColorForFish(variant);
   const paths = state.ellipses.flatMap((ellipse) => {
     return [
       `<path d="${svgPolyline(sampleArc(ellipse, 48).map((point) => svgPatternPoint(point, direction)))}" />`,
@@ -1022,7 +995,7 @@ function createUnitSvg(offset, direction, variant) {
   }).join("\n      ");
   const outline = fishOutlinePoints().map((point) => svgPatternPoint(point, direction));
   return `<g transform="${transform}">
-    ${state.layout.colorEnabled ? `<path d="${svgPolyline(outline)} Z" fill="${fill}" opacity="0.82" />` : ""}
+    ${state.layout.colorEnabled ? `<path d="${svgPolyline(outline)} Z" fill="${fill}" opacity="0.56" />` : ""}
     <g fill="none" stroke="${ink}" stroke-width="${PATTERN_STROKE_WIDTH}" stroke-linecap="round" stroke-linejoin="round">
       ${paths}
     </g>
@@ -1045,7 +1018,7 @@ function exportSvg() {
   }
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${ART_BOX.width}" height="${ART_BOX.height}" viewBox="0 0 ${ART_BOX.width} ${ART_BOX.height}">
-  <rect width="100%" height="100%" fill="${state.layout.colorEnabled ? "#ede8dc" : "#f7f3ea"}" />
+  <rect width="100%" height="100%" fill="#f7f3ea" />
   ${units.join("\n  ")}
 </svg>
 `;
