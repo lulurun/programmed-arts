@@ -32,15 +32,13 @@ const state = {
     eyeRadius: 8
   },
   layout: {
-    pitchY: 178,
-    columns: 5,
-    rows: 7,
-    columnSpacing: 0.78,
+    maxFish: 5,
     offsetX: 0,
     offsetY: 0,
     cellSize: 30,
     backgroundCell: 42,
-    scale: 1
+    scale: 1,
+    colorEnabled: false
   },
   ellipses: [
     { label: "C1 Head / outer", leftX: -264, width: 472, height: 224, visible: 58 },
@@ -64,6 +62,7 @@ const controls = {
   ellipseControls: document.querySelector("#ellipseControls"),
   paletteControls: document.querySelector("#paletteControls"),
   styleControls: document.querySelector("#styleControls"),
+  colorEnabled: document.querySelector("#colorEnabled"),
   showGuides: document.querySelector("#showGuides"),
   showFullEllipses: document.querySelector("#showFullEllipses"),
   patternName: document.querySelector("#patternName"),
@@ -489,51 +488,53 @@ function fishOutlinePoints() {
   return [...top, ...bottom];
 }
 
-function drawFishUnit(ctx, transform, offset, variant) {
-  const palette = palettes[state.palette];
-  const outline = fishOutlinePoints().map((point) => ({
-    x: point.x * state.layout.scale + offset.x,
+function transformPatternPoint(point, offset, direction = 1) {
+  const x = direction === -1 ? state.module.eyeX - (point.x - state.module.eyeX) : point.x;
+  return {
+    x: x * state.layout.scale + offset.x,
     y: point.y * state.layout.scale + offset.y
-  }));
+  };
+}
+
+function drawFishUnit(ctx, transform, offset, variant, direction = 1) {
+  const palette = palettes[state.palette];
+  const ink = state.layout.colorEnabled ? palette[4] || "#191919" : "#17201d";
+  const outline = fishOutlinePoints().map((point) => transformPatternPoint(point, offset, direction));
+
+  if (state.layout.colorEnabled) {
+    ctx.save();
+    drawPolyline(ctx, transform, outline, true);
+    ctx.clip();
+    paintCells(ctx, transform, offset, variant, palette);
+    ctx.restore();
+  }
 
   ctx.save();
-  drawPolyline(ctx, transform, outline, true);
-  ctx.clip();
-  paintCells(ctx, transform, offset, variant, palette);
-  ctx.restore();
-
-  ctx.save();
-  ctx.strokeStyle = palette[4] || "#191919";
+  ctx.strokeStyle = state.layout.colorEnabled ? palette[4] || "#191919" : "#17201d";
   ctx.lineWidth = PATTERN_STROKE_WIDTH;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   state.ellipses.forEach((ellipse) => {
-    const top = sampleArc(ellipse, 60).map((point) => scaleOffset(point, offset));
-    const bottom = sampleArc(ellipse, 60, true).map((point) => scaleOffset(point, offset));
+    const top = sampleArc(ellipse, 60).map((point) => transformPatternPoint(point, offset, direction));
+    const bottom = sampleArc(ellipse, 60, true).map((point) => transformPatternPoint(point, offset, direction));
     drawPolyline(ctx, transform, top);
     ctx.stroke();
     drawPolyline(ctx, transform, bottom);
     ctx.stroke();
   });
-  const eye = transform.toScreen(scaleOffset({ x: state.module.eyeX, y: 0 }, offset));
+  const eye = transform.toScreen(transformPatternPoint({ x: state.module.eyeX, y: 0 }, offset, direction));
   ctx.beginPath();
   ctx.arc(eye.x, eye.y, state.module.eyeRadius * transform.scale * state.layout.scale, 0, TWO_PI);
-  ctx.fillStyle = palette[4] || "#191919";
+  ctx.fillStyle = state.layout.colorEnabled ? palette[4] || "#191919" : "#17201d";
   ctx.fill();
   ctx.restore();
-}
-
-function scaleOffset(point, offset) {
-  return {
-    x: point.x * state.layout.scale + offset.x,
-    y: point.y * state.layout.scale + offset.y
-  };
 }
 
 function paintCells(ctx, transform, offset, variant, palette) {
   const cell = state.layout.cellSize * state.layout.scale;
   const width = MODULE_WIDTH * state.layout.scale;
-  const height = state.layout.pitchY * 0.94 * state.layout.scale;
+  const patternHeight = Math.max(...state.ellipses.map((ellipse) => ellipse.height));
+  const height = patternHeight * 1.1 * state.layout.scale;
   for (let y = -height / 2; y <= height / 2; y += cell) {
     for (let x = -width / 2; x <= width / 2; x += cell) {
       const overlap = ellipseOverlapAt({ x: x / state.layout.scale, y: y / state.layout.scale });
@@ -579,38 +580,28 @@ function colorIndexForCell(x, y, variant, overlap, paletteLength) {
 }
 
 function drawArtwork(ctx = artCtx) {
-  clear(ctx, "#ede8dc");
+  clear(ctx, state.layout.colorEnabled ? "#ede8dc" : "#f7f3ea");
   const transform = transformForCanvas(ctx.canvas, ART_BOX);
-  const pitch = state.layout.pitchY * state.layout.scale;
-  const columnPitch = MODULE_WIDTH * state.layout.columnSpacing * state.layout.scale;
-  const rowStart = -Math.floor((state.layout.rows - 1) / 2);
-  const rowEnd = rowStart + state.layout.rows;
-  const colStart = -Math.floor((state.layout.columns - 1) / 2);
-  const colEnd = colStart + state.layout.columns;
+  const maxFish = Math.max(1, Math.round(state.layout.maxFish));
+  const e1 = state.ellipses[0];
+  const e4 = state.ellipses[3];
+  const step = Math.max(20, (e4.leftX - e1.leftX) * state.layout.scale);
+  const startX = state.layout.offsetX - step * (maxFish - 1) / 2;
   let modules = 0;
 
-  drawBackgroundPattern(ctx);
-  for (let row = rowStart; row < rowEnd; row += 1) {
-    for (let col = colStart; col < colEnd; col += 1) {
-      const flip = (row + col) % 2 !== 0;
-      const offset = {
-        x: state.layout.offsetX + col * columnPitch,
-        y: state.layout.offsetY + row * pitch
-      };
-      ctx.save();
-      if (flip) {
-        const origin = transform.toScreen(offset);
-        ctx.translate(origin.x, origin.y);
-        ctx.scale(-1, 1);
-        ctx.translate(-origin.x, -origin.y);
-      }
-      drawFishUnit(ctx, transform, offset, row * 7 + col);
-      ctx.restore();
-      modules += 1;
-    }
+  if (state.layout.colorEnabled) drawBackgroundPattern(ctx);
+
+  for (let index = 0; index < maxFish; index += 1) {
+    const offset = {
+      x: startX + index * step,
+      y: state.layout.offsetY
+    };
+    drawFishUnit(ctx, transform, offset, index + 1, 1);
+    drawFishUnit(ctx, transform, offset, index + 101, -1);
+    modules += 2;
   }
 
-  if (ctx === artCtx) controls.artMetric.textContent = `${modules} modules / Sy ${state.layout.pitchY}`;
+  if (ctx === artCtx) controls.artMetric.textContent = `${modules} fish / max ${maxFish}`;
 }
 
 function drawBackgroundPattern(ctx) {
@@ -654,13 +645,16 @@ function renderPatternReadout() {
 }
 
 function renderArtReadout() {
+  const maxFish = Math.max(1, Math.round(state.layout.maxFish));
+  const step = Math.max(20, (state.ellipses[3].leftX - state.ellipses[0].leftX) * state.layout.scale);
   controls.readoutTitle.textContent = "Artwork Settings";
   controls.readout.innerHTML = [
-    "<strong>Final art layout</strong>",
-    `${state.layout.columns} columns x ${state.layout.rows} rows = ${state.layout.columns * state.layout.rows} modules`,
-    `pitch ${state.layout.pitchY}, spacing ${state.layout.columnSpacing}, scale ${state.layout.scale}`,
-    `offset (${state.layout.offsetX}, ${state.layout.offsetY}), cell ${state.layout.cellSize}`,
-    `palette ${state.palette}, style ${styleLabels[state.style]}`
+    "<strong>One-row final layout</strong>",
+    `fish 1-${maxFish} plus opposite fish 101-${100 + maxFish}`,
+    `E4(i) aligns with E1(i+1); repeat step ${roundTo(step)}`,
+    `opposite fish share eye x with matching fish`,
+    `scale ${state.layout.scale}, offset (${state.layout.offsetX}, ${state.layout.offsetY})`,
+    state.layout.colorEnabled ? `palette ${state.palette}, style ${styleLabels[state.style]}` : "color off"
   ].join("<br>");
 }
 
@@ -722,12 +716,10 @@ function createRange(parent, config, getter, setter) {
 function buildControls() {
   controls.showGuides.checked = state.showGuides;
   controls.showFullEllipses.checked = state.showFullEllipses;
+  controls.colorEnabled.checked = state.layout.colorEnabled;
 
   const layoutFields = [
-    ["columns", "Columns", 1, 11],
-    ["rows", "Rows", 1, 13],
-    ["pitchY", "Vertical pitch Sy", 80, 330],
-    ["columnSpacing", "Column spacing", 0.45, 1.25, 0.01],
+    ["maxFish", "Max fish", 1, 20],
     ["scale", "Pattern scale", 0.55, 1.45, 0.01],
     ["offsetX", "Offset x", -220, 220],
     ["offsetY", "Offset y", -180, 180],
@@ -740,7 +732,7 @@ function buildControls() {
       { label, min, max, step },
       () => state.layout[key],
       (value) => {
-        state.layout[key] = ["columns", "rows", "cellSize", "backgroundCell"].includes(key) ? Math.round(value) : value;
+        state.layout[key] = ["maxFish", "cellSize", "backgroundCell"].includes(key) ? Math.round(value) : value;
       }
     );
   });
@@ -787,6 +779,10 @@ function buildControls() {
   };
   controls.showFullEllipses.onchange = () => {
     state.showFullEllipses = controls.showFullEllipses.checked;
+    render();
+  };
+  controls.colorEnabled.onchange = () => {
+    state.layout.colorEnabled = controls.colorEnabled.checked;
     render();
   };
   controls.patternPageButton.onclick = () => setPage("pattern");
@@ -1012,46 +1008,47 @@ function svgPolyline(points) {
   return points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" ");
 }
 
-function createUnitSvg(offset, flip, variant) {
+function svgPatternPoint(point, direction = 1) {
+  const x = direction === -1 ? state.module.eyeX - (point.x - state.module.eyeX) : point.x;
+  return { x, y: point.y };
+}
+
+function createUnitSvg(offset, direction, variant) {
   const palette = palettes[state.palette];
-  const sx = flip ? -state.layout.scale : state.layout.scale;
-  const transform = `translate(${offset.x} ${offset.y}) scale(${sx} ${state.layout.scale})`;
+  const transform = `translate(${offset.x} ${offset.y}) scale(${state.layout.scale} ${state.layout.scale})`;
   const fill = palette[Math.abs(variant) % palette.length];
   const paths = state.ellipses.flatMap((ellipse) => {
     return [
-      `<path d="${svgPolyline(sampleArc(ellipse, 48))}" />`,
-      `<path d="${svgPolyline(sampleArc(ellipse, 48, true))}" />`
+      `<path d="${svgPolyline(sampleArc(ellipse, 48).map((point) => svgPatternPoint(point, direction)))}" />`,
+      `<path d="${svgPolyline(sampleArc(ellipse, 48, true).map((point) => svgPatternPoint(point, direction)))}" />`
     ];
   }).join("\n      ");
+  const outline = fishOutlinePoints().map((point) => svgPatternPoint(point, direction));
   return `<g transform="${transform}">
-    <path d="${svgPolyline(fishOutlinePoints())} Z" fill="${fill}" opacity="0.82" />
-    <g fill="none" stroke="${palette[4] || "#191919"}" stroke-width="${PATTERN_STROKE_WIDTH}" stroke-linecap="round" stroke-linejoin="round">
+    ${state.layout.colorEnabled ? `<path d="${svgPolyline(outline)} Z" fill="${fill}" opacity="0.82" />` : ""}
+    <g fill="none" stroke="${ink}" stroke-width="${PATTERN_STROKE_WIDTH}" stroke-linecap="round" stroke-linejoin="round">
       ${paths}
     </g>
-    <circle cx="${state.module.eyeX}" cy="0" r="${state.module.eyeRadius}" fill="${palette[4] || "#191919"}" />
+    <circle cx="${state.module.eyeX}" cy="0" r="${state.module.eyeRadius}" fill="${ink}" />
   </g>`;
 }
 
 function exportSvg() {
-  const pitch = state.layout.pitchY * state.layout.scale;
-  const columnPitch = MODULE_WIDTH * state.layout.columnSpacing * state.layout.scale;
-  const rowStart = -Math.floor((state.layout.rows - 1) / 2);
-  const rowEnd = rowStart + state.layout.rows;
-  const colStart = -Math.floor((state.layout.columns - 1) / 2);
-  const colEnd = colStart + state.layout.columns;
+  const maxFish = Math.max(1, Math.round(state.layout.maxFish));
+  const step = Math.max(20, (state.ellipses[3].leftX - state.ellipses[0].leftX) * state.layout.scale);
+  const startX = state.layout.offsetX - step * (maxFish - 1) / 2;
   const units = [];
-  for (let row = rowStart; row < rowEnd; row += 1) {
-    for (let col = colStart; col < colEnd; col += 1) {
-      const flip = (row + col) % 2 !== 0;
-      units.push(createUnitSvg({
-        x: ART_BOX.width / 2 + state.layout.offsetX + col * columnPitch,
-        y: ART_BOX.height / 2 + state.layout.offsetY + row * pitch
-      }, flip, row * 7 + col));
-    }
+  for (let index = 0; index < maxFish; index += 1) {
+    const offset = {
+      x: ART_BOX.width / 2 + startX + index * step,
+      y: ART_BOX.height / 2 + state.layout.offsetY
+    };
+    units.push(createUnitSvg(offset, 1, index + 1));
+    units.push(createUnitSvg(offset, -1, index + 101));
   }
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${ART_BOX.width}" height="${ART_BOX.height}" viewBox="0 0 ${ART_BOX.width} ${ART_BOX.height}">
-  <rect width="100%" height="100%" fill="#ede8dc" />
+  <rect width="100%" height="100%" fill="${state.layout.colorEnabled ? "#ede8dc" : "#f7f3ea"}" />
   ${units.join("\n  ")}
 </svg>
 `;

@@ -5,7 +5,7 @@ A browser-based editor for generating an elliptical fish tessellation from four 
 The app has two synchronized pages:
 
 - `Pattern`: creates the single repeatable fish module from four center-line-symmetric ellipses, mirrored arcs, and a circular eye fixed on the center axis. Eye and E1-E4 are selected from the same five-button row.
-- `Artwork`: uses the current module to create the final tessellated art with layout, spacing, scale, color palette, and fill style parameters.
+- `Artwork`: uses the current module to create the final one-row repeat art with max-fish count, scale, offsets, and optional color parameters.
 
 Each ellipse exposes:
 
@@ -25,13 +25,13 @@ Use `Save Pattern` on the Pattern page to persist the current reusable pattern t
 
 Artwork layout controls include:
 
-- row and column counts
-- vertical pitch `Sy`
-- horizontal spacing
+- max fish count, default `5`
 - pattern scale
 - x/y offsets
-- color cell and background grid size
-- palette preset and coloring style
+- optional color toggle, off by default
+- color cell/background grid size, palette preset, and coloring style when color is enabled
+
+In the Artwork page, fish 1..N are laid out in one centered row so E4 of fish `i` shares x with E1 of fish `i + 1`. Opposite-direction fish 101..100+N are drawn from the same eye x positions as fish 1..N.
 
 ## Run
 
