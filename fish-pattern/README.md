@@ -30,7 +30,7 @@ Artwork layout controls include:
 - pattern scale
 - horizontal offset
 - optional rainbow color toggle, on by default
-- translucent seven-color rainbow fill: fish 1 red through fish 7 purple, fish 8 red again
+- translucent seven-color rainbow fill on the two closed E1/E2 and E3/E4 shapes only: fish 1 red through fish 7 purple, fish 8 red again
 
 In the Artwork page, fish 1..N are laid out in one centered row so E4 of fish `i` shares x with E1 of fish `i + 1`. Opposite-direction fish 101..100+N are drawn from the same eye x positions as fish 1..N.
 

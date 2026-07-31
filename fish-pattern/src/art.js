@@ -516,12 +516,6 @@ function drawGeometry() {
   controls.geometryMetric.textContent = `${lastIntersections.length} intersections`;
 }
 
-function fishOutlinePoints() {
-  const top = state.ellipses.flatMap((ellipse) => sampleArc(ellipse, 42));
-  const bottom = [...top].reverse().map((point) => ({ x: point.x, y: -point.y }));
-  return [...top, ...bottom];
-}
-
 function transformPatternPoint(point, offset, direction = 1) {
   const x = direction === -1 ? state.module.eyeX - (point.x - state.module.eyeX) : point.x;
   return {
@@ -535,16 +529,24 @@ function rainbowColorForFish(variant) {
   return RAINBOW_COLORS[(Math.max(1, fishNumber) - 1) % RAINBOW_COLORS.length];
 }
 
-function drawFishUnit(ctx, transform, offset, variant, direction = 1) {
-  const outline = fishOutlinePoints().map((point) => transformPatternPoint(point, offset, direction));
+function transformedClosedPairPoints(firstIndex, secondIndex, offset, direction) {
+  return closedPairPoints(firstIndex, secondIndex).map((point) => transformPatternPoint(point, offset, direction));
+}
 
+function fillFishClosedPairs(ctx, transform, offset, variant, direction) {
+  ctx.save();
+  ctx.fillStyle = rainbowColorForFish(variant);
+  ctx.globalAlpha = 0.56;
+  drawPolyline(ctx, transform, transformedClosedPairPoints(0, 1, offset, direction), true);
+  ctx.fill();
+  drawPolyline(ctx, transform, transformedClosedPairPoints(2, 3, offset, direction), true);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawFishUnit(ctx, transform, offset, variant, direction = 1) {
   if (state.layout.colorEnabled) {
-    ctx.save();
-    drawPolyline(ctx, transform, outline, true);
-    ctx.fillStyle = rainbowColorForFish(variant);
-    ctx.globalAlpha = 0.56;
-    ctx.fill();
-    ctx.restore();
+    fillFishClosedPairs(ctx, transform, offset, variant, direction);
   }
 
   ctx.save();
@@ -983,6 +985,10 @@ function svgPatternPoint(point, direction = 1) {
   return { x, y: point.y };
 }
 
+function svgClosedPairPath(firstIndex, secondIndex, direction) {
+  return `${svgPolyline(closedPairPoints(firstIndex, secondIndex).map((point) => svgPatternPoint(point, direction)))} Z`;
+}
+
 function createUnitSvg(offset, direction, variant) {
   const ink = "#17201d";
   const transform = `translate(${offset.x} ${offset.y}) scale(${state.layout.scale} ${state.layout.scale})`;
@@ -993,9 +999,9 @@ function createUnitSvg(offset, direction, variant) {
       `<path d="${svgPolyline(sampleArc(ellipse, 48, true).map((point) => svgPatternPoint(point, direction)))}" />`
     ];
   }).join("\n      ");
-  const outline = fishOutlinePoints().map((point) => svgPatternPoint(point, direction));
   return `<g transform="${transform}">
-    ${state.layout.colorEnabled ? `<path d="${svgPolyline(outline)} Z" fill="${fill}" opacity="0.56" />` : ""}
+    ${state.layout.colorEnabled ? `<path d="${svgClosedPairPath(0, 1, direction)}" fill="${fill}" opacity="0.56" />
+    <path d="${svgClosedPairPath(2, 3, direction)}" fill="${fill}" opacity="0.56" />` : ""}
     <g fill="none" stroke="${ink}" stroke-width="${PATTERN_STROKE_WIDTH}" stroke-linecap="round" stroke-linejoin="round">
       ${paths}
     </g>
