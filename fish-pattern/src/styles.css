@@ -96,6 +96,7 @@ canvas {
   display: block;
   width: 100%;
   height: auto;
+  flex: 0 0 auto;
   background: #f7f3ea;
 }
 
@@ -107,6 +108,7 @@ canvas {
 .view-editor canvas {
   align-self: center;
   aspect-ratio: 860 / 620;
+  height: auto !important;
   max-width: min(100%, calc((100vh - 130px) * 860 / 620));
   max-height: calc(100vh - 130px);
 }
@@ -114,6 +116,7 @@ canvas {
 .view-art canvas {
   align-self: center;
   aspect-ratio: 1120 / 760;
+  height: auto !important;
   max-width: min(100%, calc((100vh - 130px) * 1120 / 760));
   max-height: calc(100vh - 130px);
 }

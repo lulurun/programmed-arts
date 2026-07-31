@@ -331,6 +331,26 @@ function transformForCanvas(canvas, box) {
   };
 }
 
+function syncCanvasDisplaySize(canvas, box) {
+  const view = canvas.parentElement;
+  if (!view || !Number.isFinite(view.clientWidth) || view.clientWidth <= 0) return;
+
+  const bar = view.querySelector(".view-bar");
+  const availableWidth = Math.max(0, view.clientWidth - 2);
+  const availableHeight = Math.max(0, view.clientHeight - (bar ? bar.offsetHeight : 0) - 2);
+  const ratio = box.width / box.height;
+  const width = availableHeight > 0 ? Math.min(availableWidth, availableHeight * ratio) : availableWidth;
+  const height = width / ratio;
+
+  canvas.style.width = `${Math.floor(width)}px`;
+  canvas.style.height = `${Math.floor(height)}px`;
+}
+
+function syncCanvasDisplaySizes() {
+  syncCanvasDisplaySize(controls.geometryCanvas, GEOMETRY_BOX);
+  syncCanvasDisplaySize(controls.artCanvas, ART_BOX);
+}
+
 function clear(ctx, color = "#f7f3ea") {
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   ctx.fillStyle = color;
@@ -644,6 +664,7 @@ function renderArtReadout() {
 }
 
 function render() {
+  syncCanvasDisplaySizes();
   drawGeometry();
   drawArtwork();
   if (state.page === "pattern") {
@@ -942,6 +963,10 @@ controls.geometryCanvas.addEventListener("pointermove", (event) => {
 controls.geometryCanvas.addEventListener("pointerup", () => {
   dragTarget = null;
 });
+
+if (typeof window.addEventListener === "function") {
+  window.addEventListener("resize", render);
+}
 
 async function savePatternToServer() {
   const name = controls.patternName.value.trim() || "Pattern 1";
