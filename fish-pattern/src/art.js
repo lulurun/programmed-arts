@@ -336,14 +336,15 @@ function syncCanvasDisplaySize(canvas, box) {
   if (!view || !Number.isFinite(view.clientWidth) || view.clientWidth <= 0) return;
 
   const bar = view.querySelector(".view-bar");
-  const availableWidth = Math.max(0, view.clientWidth - 2);
-  const availableHeight = Math.max(0, view.clientHeight - (bar ? bar.offsetHeight : 0) - 2);
+  const rect = view.getBoundingClientRect();
+  const availableWidth = Math.max(0, Math.min(view.clientWidth, rect.width || view.clientWidth) - 2);
+  const availableHeight = Math.max(0, (rect.height || view.clientHeight) - (bar ? bar.offsetHeight : 0) - 2);
   const ratio = box.width / box.height;
   const width = availableHeight > 0 ? Math.min(availableWidth, availableHeight * ratio) : availableWidth;
   const height = width / ratio;
 
-  canvas.style.width = `${Math.floor(width)}px`;
-  canvas.style.height = `${Math.floor(height)}px`;
+  canvas.style.setProperty("width", `${Math.floor(width)}px`, "important");
+  canvas.style.setProperty("height", `${Math.floor(height)}px`, "important");
 }
 
 function syncCanvasDisplaySizes() {
