@@ -16,6 +16,7 @@ Each ellipse exposes:
 
 All ellipses are symmetric around the center line. E1 and E4 always share width and height. E2 and E3 always share the same leftmost x position.
 E1/E2 and E3/E4 are constrained as closed arc pairs: each pair has shared start and end points. The dependent arc controls are shown as fitted values when they are derived from the pair constraint.
+The Pattern page fills those two closed pairs with translucent preview colors for coloring tests.
 
 The pattern canvas keeps its original aspect ratio, highlights calculated ellipse intersections, and supports dragging ellipse handles or the eye horizontally along the center line. There is no vertical pan or vertical element movement in the pattern editor. The artwork page updates immediately from the current pattern.
 

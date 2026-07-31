@@ -399,6 +399,22 @@ function drawEllipseWire(ctx, transform, ellipse, index) {
   ctx.restore();
 }
 
+function closedPairPoints(firstIndex, secondIndex) {
+  const firstTop = sampleArc(state.ellipses[firstIndex], 72);
+  const secondTop = sampleArc(state.ellipses[secondIndex], 72).reverse();
+  const firstBottom = sampleArc(state.ellipses[firstIndex], 72, true).reverse();
+  const secondBottom = sampleArc(state.ellipses[secondIndex], 72, true);
+  return [...firstTop, ...secondTop, ...firstBottom, ...secondBottom];
+}
+
+function fillClosedPair(ctx, transform, firstIndex, secondIndex, color) {
+  ctx.save();
+  drawPolyline(ctx, transform, closedPairPoints(firstIndex, secondIndex), true);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawPoint(ctx, transform, point, radius, color) {
   const screen = transform.toScreen(point);
   ctx.beginPath();
@@ -454,6 +470,9 @@ function drawGeometry() {
     geometryCtx.stroke();
     geometryCtx.restore();
   }
+
+  fillClosedPair(geometryCtx, transform, 0, 1, "rgba(243, 211, 66, 0.34)");
+  fillClosedPair(geometryCtx, transform, 2, 3, "rgba(20, 127, 131, 0.28)");
 
   state.ellipses.forEach((ellipse, index) => drawEllipseWire(geometryCtx, transform, ellipse, index));
 
