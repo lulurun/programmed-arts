@@ -45,6 +45,7 @@ const state = {
     maxFish: 5,
     offsetX: 0,
     scale: 1,
+    scaleY: 1,
     colorEnabled: true
   },
   ellipses: [
@@ -141,6 +142,7 @@ function applyStoredState() {
           maxFish: state.layout.maxFish,
           offsetX: state.layout.offsetX,
           scale: state.layout.scale,
+          scaleY: typeof state.layout.scaleY === "number" ? state.layout.scaleY : 1,
           colorEnabled: state.layout.colorEnabled
         };
       }
@@ -520,7 +522,7 @@ function transformPatternPoint(point, offset, direction = 1) {
   const x = direction === -1 ? state.module.eyeX - (point.x - state.module.eyeX) : point.x;
   return {
     x: x * state.layout.scale + offset.x,
-    y: point.y * state.layout.scale + offset.y
+    y: point.y * state.layout.scaleY + offset.y
   };
 }
 
@@ -628,7 +630,7 @@ function renderArtReadout() {
     `fish 1-${maxFish} plus opposite fish 101-${100 + maxFish}`,
     `E4(i) aligns with E1(i+1); repeat step ${roundTo(step)}`,
     `opposite fish share eye x with matching fish`,
-    `scale ${state.layout.scale}, offset x ${state.layout.offsetX}`,
+    `scale x ${state.layout.scale}, scale y ${state.layout.scaleY}, offset x ${state.layout.offsetX}`,
     state.layout.colorEnabled ? "rainbow fill: red, orange, yellow, green, blue, indigo, purple" : "color off"
   ].join("<br>");
 }
@@ -695,7 +697,8 @@ function buildControls() {
 
   const layoutFields = [
     ["maxFish", "Max fish", 1, 20],
-    ["scale", "Pattern scale", 0.55, 1.45, 0.01],
+    ["scale", "Horizontal scale", 0.55, 1.45, 0.01],
+    ["scaleY", "Vertical scale", 0.35, 1.8, 0.01],
     ["offsetX", "Offset x", -220, 220]
   ];
   layoutFields.forEach(([key, label, min, max, step]) => {
@@ -991,8 +994,10 @@ function svgClosedPairPath(firstIndex, secondIndex, direction) {
 
 function createUnitSvg(offset, direction, variant) {
   const ink = "#17201d";
-  const transform = `translate(${offset.x} ${offset.y}) scale(${state.layout.scale} ${state.layout.scale})`;
+  const transform = `translate(${offset.x} ${offset.y}) scale(${state.layout.scale} ${state.layout.scaleY})`;
   const fill = rainbowColorForFish(variant);
+  const eye = transformPatternPoint({ x: state.module.eyeX, y: 0 }, offset, direction);
+  const eyeRadius = state.module.eyeRadius * state.layout.scale;
   const paths = state.ellipses.flatMap((ellipse) => {
     return [
       `<path d="${svgPolyline(sampleArc(ellipse, 48).map((point) => svgPatternPoint(point, direction)))}" />`,
@@ -1005,8 +1010,8 @@ function createUnitSvg(offset, direction, variant) {
     <g fill="none" stroke="${ink}" stroke-width="${PATTERN_STROKE_WIDTH}" stroke-linecap="round" stroke-linejoin="round">
       ${paths}
     </g>
-    <circle cx="${state.module.eyeX}" cy="0" r="${state.module.eyeRadius}" fill="${ink}" />
-  </g>`;
+  </g>
+  <circle cx="${eye.x}" cy="${eye.y}" r="${eyeRadius}" fill="${ink}" />`;
 }
 
 function exportSvg() {

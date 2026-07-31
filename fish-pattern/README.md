@@ -27,7 +27,8 @@ Use `Save Pattern` on the Pattern page to persist the current reusable pattern t
 Artwork layout controls include:
 
 - max fish count, default `5`
-- pattern scale
+- horizontal scale
+- vertical scale
 - horizontal offset
 - optional rainbow color toggle, on by default
 - translucent seven-color rainbow fill on the two closed E1/E2 and E3/E4 shapes only: fish 1 red through fish 7 purple, fish 8 red again
