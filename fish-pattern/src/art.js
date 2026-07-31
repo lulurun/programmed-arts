@@ -34,9 +34,6 @@ const state = {
   layout: {
     maxFish: 5,
     offsetX: 0,
-    offsetY: 0,
-    cellSize: 30,
-    backgroundCell: 42,
     scale: 1,
     colorEnabled: false
   },
@@ -531,7 +528,7 @@ function drawFishUnit(ctx, transform, offset, variant, direction = 1) {
 }
 
 function paintCells(ctx, transform, offset, variant, palette) {
-  const cell = state.layout.cellSize * state.layout.scale;
+  const cell = 30 * state.layout.scale;
   const width = MODULE_WIDTH * state.layout.scale;
   const patternHeight = Math.max(...state.ellipses.map((ellipse) => ellipse.height));
   const height = patternHeight * 1.1 * state.layout.scale;
@@ -574,9 +571,9 @@ function ellipseOverlapAt(point) {
 
 function colorIndexForCell(x, y, variant, overlap, paletteLength) {
   if (state.style === "overlap") return clamp(overlap, 0, paletteLength - 1);
-  if (state.style === "stripes") return Math.abs(Math.floor((y + variant * 17) / state.layout.cellSize)) % paletteLength;
+  if (state.style === "stripes") return Math.abs(Math.floor((y + variant * 17) / 30)) % paletteLength;
   if (state.style === "gradient") return Math.abs(Math.floor((x + y) / 62 + variant)) % paletteLength;
-  return Math.abs(Math.floor(x / state.layout.cellSize) + Math.floor(y / state.layout.cellSize) + variant) % paletteLength;
+  return Math.abs(Math.floor(x / 30) + Math.floor(y / 30) + variant) % paletteLength;
 }
 
 function drawArtwork(ctx = artCtx) {
@@ -589,12 +586,10 @@ function drawArtwork(ctx = artCtx) {
   const startX = state.layout.offsetX - step * (maxFish - 1) / 2;
   let modules = 0;
 
-  if (state.layout.colorEnabled) drawBackgroundPattern(ctx);
-
   for (let index = 0; index < maxFish; index += 1) {
     const offset = {
       x: startX + index * step,
-      y: state.layout.offsetY
+      y: 0
     };
     drawFishUnit(ctx, transform, offset, index + 1, 1);
     drawFishUnit(ctx, transform, offset, index + 101, -1);
@@ -602,20 +597,6 @@ function drawArtwork(ctx = artCtx) {
   }
 
   if (ctx === artCtx) controls.artMetric.textContent = `${modules} fish / max ${maxFish}`;
-}
-
-function drawBackgroundPattern(ctx) {
-  const palette = palettes[state.palette];
-  const size = state.layout.backgroundCell;
-  for (let y = 0; y < ctx.canvas.height; y += size) {
-    for (let x = 0; x < ctx.canvas.width; x += size) {
-      const index = Math.floor(x / size) + Math.floor(y / size);
-      ctx.fillStyle = palette[index % palette.length];
-      ctx.globalAlpha = state.style === "chequer" ? 0.15 : 0.08;
-      ctx.fillRect(x, y, size, size);
-    }
-  }
-  ctx.globalAlpha = 1;
 }
 
 function renderPatternReadout() {
@@ -653,7 +634,7 @@ function renderArtReadout() {
     `fish 1-${maxFish} plus opposite fish 101-${100 + maxFish}`,
     `E4(i) aligns with E1(i+1); repeat step ${roundTo(step)}`,
     `opposite fish share eye x with matching fish`,
-    `scale ${state.layout.scale}, offset (${state.layout.offsetX}, ${state.layout.offsetY})`,
+    `scale ${state.layout.scale}, offset x ${state.layout.offsetX}`,
     state.layout.colorEnabled ? `palette ${state.palette}, style ${styleLabels[state.style]}` : "color off"
   ].join("<br>");
 }
@@ -721,10 +702,7 @@ function buildControls() {
   const layoutFields = [
     ["maxFish", "Max fish", 1, 20],
     ["scale", "Pattern scale", 0.55, 1.45, 0.01],
-    ["offsetX", "Offset x", -220, 220],
-    ["offsetY", "Offset y", -180, 180],
-    ["cellSize", "Color cell", 12, 58],
-    ["backgroundCell", "Background grid", 18, 86]
+    ["offsetX", "Offset x", -220, 220]
   ];
   layoutFields.forEach(([key, label, min, max, step]) => {
     createRange(
@@ -732,7 +710,7 @@ function buildControls() {
       { label, min, max, step },
       () => state.layout[key],
       (value) => {
-        state.layout[key] = ["maxFish", "cellSize", "backgroundCell"].includes(key) ? Math.round(value) : value;
+        state.layout[key] = key === "maxFish" ? Math.round(value) : value;
       }
     );
   });
@@ -1041,7 +1019,7 @@ function exportSvg() {
   for (let index = 0; index < maxFish; index += 1) {
     const offset = {
       x: ART_BOX.width / 2 + startX + index * step,
-      y: ART_BOX.height / 2 + state.layout.offsetY
+      y: ART_BOX.height / 2
     };
     units.push(createUnitSvg(offset, 1, index + 1));
     units.push(createUnitSvg(offset, -1, index + 101));

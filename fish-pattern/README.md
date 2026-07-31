@@ -27,9 +27,9 @@ Artwork layout controls include:
 
 - max fish count, default `5`
 - pattern scale
-- x/y offsets
+- horizontal offset
 - optional color toggle, off by default
-- color cell/background grid size, palette preset, and coloring style when color is enabled
+- palette preset and coloring style when color is enabled
 
 In the Artwork page, fish 1..N are laid out in one centered row so E4 of fish `i` shares x with E1 of fish `i + 1`. Opposite-direction fish 101..100+N are drawn from the same eye x positions as fish 1..N.
 
