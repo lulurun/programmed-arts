@@ -907,7 +907,7 @@ function nearestHandle(world) {
     { type: "eye", index: -1, x: state.module.eyeX, y: 0 }
   ];
   return candidates.reduce((best, item) => {
-    const distance = Math.hypot(world.x - item.x, world.y - item.y);
+    const distance = Math.abs(world.x - item.x);
     return distance < best.distance ? { ...item, distance } : best;
   }, { distance: Infinity });
 }
@@ -916,7 +916,7 @@ controls.geometryCanvas.addEventListener("pointerdown", (event) => {
   const transform = transformForCanvas(controls.geometryCanvas, GEOMETRY_BOX);
   const world = transform.toWorld(pointerPosition(event));
   const nearest = nearestHandle(world);
-  if (nearest.distance > 18) return;
+  if (nearest.distance > 22 || Math.abs(world.y) > 190) return;
   dragTarget = nearest;
   state.activePart = nearest.type === "ellipse" ? nearest.index : "eye";
   rebuildEllipseControls();
