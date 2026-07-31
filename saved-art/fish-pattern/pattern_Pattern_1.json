@@ -1,26 +1,40 @@
 {
-  "id": "pattern-mrnh0ijc-5ujcq",
+  "id": "pattern-ms8ocxyw",
   "name": "Pattern 1",
-  "params": {
-    "eyeX": 94,
-    "eyeRadius": 8,
-    "e1X": 408,
-    "e1Width": 685,
-    "e1Height": 450,
-    "e1Visible": 85,
-    "e2X": 375,
-    "e2Width": 255,
-    "e2Height": 468,
-    "e2Visible": 77,
-    "e3X": 360,
-    "e3Width": 224,
-    "e3Height": 175,
-    "e3Visible": 100,
-    "e4X": 676,
-    "e4Width": 685,
-    "e4Height": 450,
-    "e4Visible": 25,
-    "strokeWidth": 7
+  "savedAt": "2026-07-31T08:22:39.609Z",
+  "module": {
+    "eyeX": -225,
+    "eyeRadius": 6
   },
+  "ellipses": [
+    {
+      "label": "C1 Head / outer",
+      "leftX": -255,
+      "width": 485,
+      "height": 360,
+      "visible": 100
+    },
+    {
+      "label": "C2 Gill",
+      "leftX": -90.8149,
+      "width": 175,
+      "height": 362,
+      "visible": 93.3049
+    },
+    {
+      "label": "C3 Body",
+      "leftX": -90.8149,
+      "width": 150,
+      "height": 120,
+      "visible": 100
+    },
+    {
+      "label": "C4 Tail root",
+      "leftX": -29.6837,
+      "width": 485,
+      "height": 360,
+      "visible": 21.6347
+    }
+  ],
   "type": "pattern"
 }
